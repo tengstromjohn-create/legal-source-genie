@@ -68,9 +68,9 @@ export const PdfUploadDialog = () => {
 
       const data = await response.json();
 
-      const message = data.pages > 50 
-        ? `PDF has ${data.pages} pages - processed first 50. Extracted ${data.characters} characters. Sources will be saved in background.`
-        : `Processing ${data.processedPages} pages. Extracted ${data.characters} characters. Sources will be saved in background.`;
+      const message = data.inserted 
+        ? `Successfully imported ${data.inserted} legal source${data.inserted > 1 ? 's' : ''} from ${data.processedPages} pages${data.pages > 50 ? ` (document has ${data.pages} total pages)` : ''}`
+        : `Processing completed for ${data.processedPages} pages`;
 
       toast({
         title: "Success",
