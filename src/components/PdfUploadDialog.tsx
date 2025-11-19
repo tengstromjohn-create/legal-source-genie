@@ -68,9 +68,14 @@ export const PdfUploadDialog = () => {
 
       const data = await response.json();
 
+      const message = data.pages > 50 
+        ? `PDF has ${data.pages} pages - processed first 50. Extracted ${data.characters} characters. Sources will be saved in background.`
+        : `Processing ${data.processedPages} pages. Extracted ${data.characters} characters. Sources will be saved in background.`;
+
       toast({
         title: "Success",
-        description: `PDF processing started. Extracted ${data.characters} characters from ${data.pages} pages. Sources will be saved in background.`,
+        description: message,
+        duration: 5000,
       });
 
       queryClient.invalidateQueries({ queryKey: ["legal_sources"] });

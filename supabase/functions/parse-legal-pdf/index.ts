@@ -124,8 +124,14 @@ Deno.serve(async (req) => {
     
     console.log(`PDF has ${numPages} pages`);
     
+    // Limit to 50 pages to avoid CPU timeout
+    const maxPages = Math.min(numPages, 50);
+    if (numPages > 50) {
+      console.log(`WARNING: Document has ${numPages} pages, limiting to first ${maxPages} pages`);
+    }
+    
     let fullText = '';
-    for (let i = 1; i <= numPages; i++) {
+    for (let i = 1; i <= maxPages; i++) {
       const page = await doc.getPage(i);
       const content = await page.getTextContent();
       const pageText = content.items.map((item: any) => item.str).join(' ');
@@ -190,8 +196,11 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'PDF processing started in background',
+        message: numPages > 50 
+          ? `PDF has ${numPages} pages - processed first 50 pages. Processing in background...`
+          : 'PDF processing started in background',
         pages: numPages,
+        processedPages: maxPages,
         characters: fullText.length
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
