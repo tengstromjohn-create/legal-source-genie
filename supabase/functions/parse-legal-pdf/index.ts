@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
 
     // Use Lovable AI to parse the PDF
     console.log('Calling Lovable AI to parse PDF...');
-    const aiResponse = await fetch('https://api.lovable.app/ai/completions', {
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${lovableApiKey}`,
@@ -160,13 +160,27 @@ Deno.serve(async (req) => {
     if (!aiResponse.ok) {
       const error = await aiResponse.text();
       console.error('AI parsing failed:', error);
+      console.error('Status:', aiResponse.status);
       return new Response(
-        JSON.stringify({ error: 'Failed to parse PDF with AI' }),
+        JSON.stringify({ 
+          error: `Failed to parse PDF with AI: ${aiResponse.status} ${aiResponse.statusText}`,
+          details: error.substring(0, 500)
+        }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const aiResult = await aiResponse.json();
+    console.log('AI response:', JSON.stringify(aiResult).substring(0, 200));
+    
+    if (!aiResult.choices || !aiResult.choices[0]?.message?.content) {
+      console.error('Invalid AI response structure:', aiResult);
+      return new Response(
+        JSON.stringify({ error: 'Invalid response from AI' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     const fullText = aiResult.choices[0].message.content;
 
     console.log(`Extracted ${fullText.length} characters from PDF`);
