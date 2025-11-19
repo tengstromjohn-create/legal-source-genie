@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Loader2 } from "lucide-react";
+import { Plus, FileText, Loader2, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const Sources = () => {
@@ -17,6 +17,7 @@ const Sources = () => {
   const [typ, setTyp] = useState("");
   const [referens, setReferens] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -86,6 +87,34 @@ const Sources = () => {
       typ: typ || null,
       referens: referens || null,
     });
+  };
+
+  const handleGenerateRequirements = async (sourceId: string) => {
+    setGeneratingId(sourceId);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-requirements', {
+        body: { legal_source_id: sourceId }
+      });
+
+      if (error) throw error;
+
+      const inserted = data?.inserted || 0;
+      toast({
+        title: "Krav skapade",
+        description: `${inserted} krav har extraherats från dokumentet`,
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
+    } catch (error: any) {
+      toast({
+        title: "Fel",
+        description: error.message || "Kunde inte generera krav",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingId(null);
+    }
   };
 
   return (
@@ -216,28 +245,49 @@ const Sources = () => {
         ) : sources && sources.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {sources.map((source) => (
-              <Link key={source.id} to={`/sources/${source.id}`}>
-                <Card className="h-full transition-all hover:shadow-lg hover:border-primary cursor-pointer">
-                  <CardHeader>
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-primary/10 rounded-lg">
-                        <FileText className="h-5 w-5 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-lg line-clamp-2">{source.title}</CardTitle>
-                        <CardDescription className="mt-1">
-                          {new Date(source.created_at).toLocaleDateString()}
-                        </CardDescription>
-                      </div>
+              <Card key={source.id} className="h-full transition-all hover:shadow-lg hover:border-primary">
+                <CardHeader>
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <FileText className="h-5 w-5 text-primary" />
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground line-clamp-3">
-                      {source.content}
-                    </p>
-                  </CardContent>
-                </Card>
-              </Link>
+                    <div className="flex-1 min-w-0">
+                      <Link to={`/sources/${source.id}`}>
+                        <CardTitle className="text-lg line-clamp-2 hover:text-primary cursor-pointer">
+                          {source.title}
+                        </CardTitle>
+                      </Link>
+                      <CardDescription className="mt-1">
+                        {new Date(source.created_at).toLocaleDateString()}
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground line-clamp-3">
+                    {source.content}
+                  </p>
+                  <Button
+                    onClick={() => handleGenerateRequirements(source.id)}
+                    disabled={generatingId === source.id}
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2"
+                  >
+                    {generatingId === source.id ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Genererar...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Generera krav
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
             ))}
           </div>
         ) : (
