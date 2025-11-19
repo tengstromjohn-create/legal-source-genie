@@ -116,7 +116,15 @@ Deno.serve(async (req) => {
     // Convert file to base64 for AI parsing
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
-    const base64 = btoa(String.fromCharCode(...bytes));
+    
+    // Convert to base64 in chunks to avoid call stack overflow
+    let base64 = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.slice(i, i + chunkSize);
+      base64 += String.fromCharCode(...chunk);
+    }
+    base64 = btoa(base64);
 
     // Use Lovable AI to parse the PDF
     console.log('Calling Lovable AI to parse PDF...');
