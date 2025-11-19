@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, FileText, Loader2, Sparkles, LogOut } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { PdfUploadDialog } from "@/components/PdfUploadDialog";
 
 const Sources = () => {
   const [title, setTitle] = useState("");
@@ -149,10 +150,13 @@ const Sources = () => {
             </div>
             <div className="flex items-center gap-3">
               {isAdmin && (
-                <Button onClick={() => setIsFormOpen(!isFormOpen)} className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  New Source
-                </Button>
+                <>
+                  <PdfUploadDialog />
+                  <Button onClick={() => setIsFormOpen(!isFormOpen)} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    New Source
+                  </Button>
+                </>
               )}
               <Button variant="outline" onClick={signOut} className="gap-2">
                 <LogOut className="h-4 w-4" />
