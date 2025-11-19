@@ -149,6 +149,10 @@ const Sources = () => {
               <p className="text-muted-foreground mt-1">Manage and analyze legal documents</p>
             </div>
             <div className="flex items-center gap-3">
+              <Button variant="outline" onClick={() => navigate("/requirements")} className="gap-2">
+                <FileText className="h-4 w-4" />
+                Visa Krav
+              </Button>
               {isAdmin && (
                 <>
                   <PdfUploadDialog />
