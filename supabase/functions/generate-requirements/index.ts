@@ -122,9 +122,21 @@ ${textToAnalyze}
     // Parse the JSON content
     let parsed;
     try {
-      parsed = JSON.parse(content);
+      // Remove markdown code blocks if present
+      let jsonContent = content.trim();
+      
+      // Check if wrapped in markdown code blocks
+      if (jsonContent.startsWith('```')) {
+        // Extract JSON from markdown code block
+        const match = jsonContent.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+        if (match) {
+          jsonContent = match[1].trim();
+        }
+      }
+      
+      parsed = JSON.parse(jsonContent);
     } catch (parseError) {
-      console.error("Failed to parse AI response:", content);
+      console.error("Failed to parse AI response:", content.substring(0, 500));
       throw new Error("Invalid JSON response from AI");
     }
 
