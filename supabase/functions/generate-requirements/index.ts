@@ -40,6 +40,14 @@ serve(async (req) => {
 
     console.log("Legal source fetched:", source.title);
 
+    // Limit text to 30000 characters to avoid timeout
+    const fullText = source.full_text || source.content || '';
+    const textToAnalyze = fullText.length > 30000 
+      ? fullText.substring(0, 30000) + '\n\n[Text truncated due to length...]'
+      : fullText;
+    
+    console.log(`Analyzing ${textToAnalyze.length} characters (original: ${fullText.length})`);
+
     // Build user prompt with legal source data
     const userPrompt = `
 Regelverk: ${source.regelverk_name || source.title}
@@ -48,7 +56,7 @@ Typ: ${source.typ || ""}
 Referens: ${source.referens || ""}
 
 Text:
-${source.full_text || source.content}
+${textToAnalyze}
     `.trim();
 
     // Call Lovable AI to analyze the legal text
@@ -69,6 +77,7 @@ ${source.full_text || source.content}
           { role: "system", content: LAW_SYSTEM_PROMPT },
           { role: "user", content: userPrompt },
         ],
+        max_tokens: 8000,
       }),
     });
 
