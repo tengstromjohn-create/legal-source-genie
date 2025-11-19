@@ -70,7 +70,7 @@ export const PdfUploadDialog = () => {
 
       toast({
         title: "Success",
-        description: `Successfully imported ${data.inserted} legal sources`,
+        description: `PDF processing started. Extracted ${data.characters} characters from ${data.pages} pages. Sources will be saved in background.`,
       });
 
       queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
