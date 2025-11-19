@@ -49,11 +49,24 @@ export const PdfUploadDialog = () => {
         formData.append("referens", referens);
       }
 
-      const { data, error } = await supabase.functions.invoke("parse-legal-pdf", {
+      // Use fetch directly for FormData file uploads
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/parse-legal-pdf`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+        },
         body: formData,
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to parse PDF');
+      }
+
+      const data = await response.json();
 
       toast({
         title: "Success",
