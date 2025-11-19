@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Loader2, Sparkles, LogOut } from "lucide-react";
+import { Plus, FileText, Loader2, Sparkles, LogOut, CheckSquare, Square } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { PdfUploadDialog } from "@/components/PdfUploadDialog";
@@ -20,6 +21,8 @@ const Sources = () => {
   const [referens, setReferens] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
+  const [isBatchGenerating, setIsBatchGenerating] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -127,6 +130,66 @@ const Sources = () => {
     }
   };
 
+  const handleBatchGenerate = async () => {
+    if (selectedSources.size === 0) {
+      toast({
+        title: "Ingen källa vald",
+        description: "Välj minst en källa för att generera krav",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsBatchGenerating(true);
+    let successCount = 0;
+    let totalInserted = 0;
+
+    for (const sourceId of selectedSources) {
+      try {
+        const { data, error } = await supabase.functions.invoke('generate-requirements', {
+          body: { legal_source_id: sourceId }
+        });
+
+        if (error) throw error;
+
+        const inserted = data?.inserted || 0;
+        totalInserted += inserted;
+        successCount++;
+      } catch (error: any) {
+        console.error(`Failed to generate for ${sourceId}:`, error);
+      }
+    }
+
+    setIsBatchGenerating(false);
+    setSelectedSources(new Set());
+    queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
+
+    toast({
+      title: "Batch-generering klar",
+      description: `${totalInserted} krav skapade från ${successCount} av ${selectedSources.size} källor`,
+    });
+  };
+
+  const toggleSourceSelection = (sourceId: string) => {
+    setSelectedSources(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sourceId)) {
+        newSet.delete(sourceId);
+      } else {
+        newSet.add(sourceId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedSources.size === sources?.length) {
+      setSelectedSources(new Set());
+    } else {
+      setSelectedSources(new Set(sources?.map(s => s.id) || []));
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -149,6 +212,36 @@ const Sources = () => {
               <p className="text-muted-foreground mt-1">Manage and analyze legal documents</p>
             </div>
             <div className="flex items-center gap-3">
+              {isAdmin && sources && sources.length > 0 && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    onClick={toggleSelectAll}
+                    disabled={isBatchGenerating}
+                    className="gap-2"
+                  >
+                    {selectedSources.size === sources.length ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                    Markera alla
+                  </Button>
+                  <Button 
+                    onClick={handleBatchGenerate}
+                    disabled={selectedSources.size === 0 || isBatchGenerating}
+                    className="gap-2"
+                  >
+                    {isBatchGenerating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Genererar ({selectedSources.size})...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Generera Krav ({selectedSources.size})
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
               <Button variant="outline" onClick={() => navigate("/requirements")} className="gap-2">
                 <FileText className="h-4 w-4" />
                 Visa Krav
@@ -285,6 +378,14 @@ const Sources = () => {
               <Card key={source.id} className="h-full transition-all hover:shadow-lg hover:border-primary">
                 <CardHeader>
                   <div className="flex items-start gap-3">
+                    {isAdmin && (
+                      <Checkbox 
+                        checked={selectedSources.has(source.id)}
+                        onCheckedChange={() => toggleSourceSelection(source.id)}
+                        disabled={isBatchGenerating}
+                        className="mt-1"
+                      />
+                    )}
                     <div className="p-2 bg-primary/10 rounded-lg">
                       <FileText className="h-5 w-5 text-primary" />
                     </div>
@@ -307,7 +408,7 @@ const Sources = () => {
                   {isAdmin && (
                     <Button
                       onClick={() => handleGenerateRequirements(source.id)}
-                      disabled={generatingId === source.id}
+                      disabled={generatingId === source.id || isBatchGenerating}
                       variant="outline"
                       size="sm"
                       className="w-full gap-2"
