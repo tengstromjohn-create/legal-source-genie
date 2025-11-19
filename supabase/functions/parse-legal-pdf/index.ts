@@ -150,78 +150,83 @@ Deno.serve(async (req) => {
     // Log first 500 chars to see the structure
     console.log('First 500 chars:', fullText.substring(0, 500));
 
-    // Return immediately and process in background
-    const processInBackground = async () => {
-      // Segment the text into legal blocks
-      const blocks = segmentLawText(fullText, regelverkName);
-      console.log(`Segmented into ${blocks.length} legal blocks`);
+    // Segment the text into legal blocks
+    const blocks = segmentLawText(fullText, regelverkName);
+    console.log(`Segmented into ${blocks.length} legal blocks`);
 
-      if (blocks.length === 0) {
-        console.log('No segments found, saving entire document as one block');
-        // If no segments found, save the whole text as one source
-        const { error: insertError } = await supabase
-          .from('legal_source')
-          .insert({
-            regelverk_name: regelverkName,
-            typ,
-            referens,
-            title: regelverkName,
-            content: fullText.substring(0, 500),
-            full_text: fullText,
-          });
-
-        if (insertError) {
-          console.error('Insert error:', insertError);
-        } else {
-          console.log('Successfully saved entire document as one source');
-        }
-        return;
-      }
-
-      // Insert in batches
-      const batchSize = 50;
-      let totalInserted = 0;
-
-      for (let i = 0; i < blocks.length; i += batchSize) {
-        const batch = blocks.slice(i, i + batchSize);
-        const rowsToInsert = batch.map((block) => ({
+    if (blocks.length === 0) {
+      console.log('No segments found, saving entire document as one block');
+      // If no segments found, save the whole text as one source
+      const { error: insertError } = await supabase
+        .from('legal_source')
+        .insert({
           regelverk_name: regelverkName,
           typ,
-          lagrum: block.lagrum,
           referens,
-          title: block.lagrum,
-          content: block.text.substring(0, 500),
-          full_text: block.text,
-        }));
+          title: regelverkName,
+          content: fullText.substring(0, 500),
+          full_text: fullText,
+        });
 
-        const { error: insertError } = await supabase
-          .from('legal_source')
-          .insert(rowsToInsert);
-
-        if (insertError) {
-          console.error(`Batch insert error:`, insertError);
-        } else {
-          totalInserted += rowsToInsert.length;
-          console.log(`Inserted: ${totalInserted}/${blocks.length}`);
-        }
+      if (insertError) {
+        console.error('Insert error:', insertError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to save document', details: insertError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
+      
+      console.log('Successfully saved entire document');
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Document saved successfully',
+          pages: numPages,
+          processedPages: maxPages,
+          inserted: 1
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-      console.log(`Completed: ${totalInserted} sources saved`);
-    };
+    // Insert in batches
+    const batchSize = 50;
+    let totalInserted = 0;
 
-    // Start background processing
-    processInBackground().catch(err => console.error('Background error:', err));
+    for (let i = 0; i < blocks.length; i += batchSize) {
+      const batch = blocks.slice(i, i + batchSize);
+      const rowsToInsert = batch.map((block) => ({
+        regelverk_name: regelverkName,
+        typ,
+        lagrum: block.lagrum,
+        referens,
+        title: block.lagrum,
+        content: block.text.substring(0, 500),
+        full_text: block.text,
+      }));
 
-    // Return immediately
+      const { error: insertError } = await supabase
+        .from('legal_source')
+        .insert(rowsToInsert);
+
+      if (insertError) {
+        console.error(`Batch insert error:`, insertError);
+      } else {
+        totalInserted += rowsToInsert.length;
+        console.log(`Inserted: ${totalInserted}/${blocks.length}`);
+      }
+    }
+
+    console.log(`Completed: ${totalInserted} sources saved`);
+
     return new Response(
       JSON.stringify({
         success: true,
-        message: numPages > 50 
-          ? `PDF has ${numPages} pages - processed first 50 pages. Processing in background...`
-          : 'PDF processing started in background',
+        message: 'Document processed successfully',
         pages: numPages,
         processedPages: maxPages,
-        characters: fullText.length
+        inserted: totalInserted
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
