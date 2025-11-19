@@ -153,37 +153,40 @@ Deno.serve(async (req) => {
 
     console.log(`Segmented into ${blocks.length} legal blocks`);
 
-    // Insert into legal_source table
-    const rowsToInsert = blocks.map((block) => ({
-      regelverk_name: regelverkName,
-      typ,
-      lagrum: block.lagrum,
-      referens,
-      title: block.lagrum,
-      content: block.text.substring(0, 500), // Short preview
-      full_text: block.text,
-    }));
+    // Insert in batches to avoid CPU timeout
+    const batchSize = 50;
+    let totalInserted = 0;
 
-    const { error: insertError, data } = await supabase
-      .from('legal_source')
-      .insert(rowsToInsert)
-      .select();
+    for (let i = 0; i < blocks.length; i += batchSize) {
+      const batch = blocks.slice(i, i + batchSize);
+      const rowsToInsert = batch.map((block) => ({
+        regelverk_name: regelverkName,
+        typ,
+        lagrum: block.lagrum,
+        referens,
+        title: block.lagrum,
+        content: block.text.substring(0, 500),
+        full_text: block.text,
+      }));
 
-    if (insertError) {
-      console.error('Insert error:', insertError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to save legal sources', details: insertError.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      const { error: insertError } = await supabase
+        .from('legal_source')
+        .insert(rowsToInsert);
+
+      if (insertError) {
+        console.error(`Batch ${i}-${i+batch.length} insert error:`, insertError);
+      } else {
+        totalInserted += rowsToInsert.length;
+        console.log(`Inserted batch: ${totalInserted}/${blocks.length}`);
+      }
     }
 
-    console.log(`Successfully inserted ${rowsToInsert.length} legal sources`);
+    console.log(`Successfully inserted ${totalInserted} legal sources`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        inserted: rowsToInsert.length,
-        sources: data
+        inserted: totalInserted,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
