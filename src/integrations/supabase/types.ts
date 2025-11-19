@@ -18,47 +18,89 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          full_text: string | null
           id: string
+          lagrum: string | null
+          referens: string | null
+          regelverk_name: string | null
           title: string
+          typ: string | null
           updated_at: string
         }
         Insert: {
           content: string
           created_at?: string
+          full_text?: string | null
           id?: string
+          lagrum?: string | null
+          referens?: string | null
+          regelverk_name?: string | null
           title: string
+          typ?: string | null
           updated_at?: string
         }
         Update: {
           content?: string
           created_at?: string
+          full_text?: string | null
           id?: string
+          lagrum?: string | null
+          referens?: string | null
+          regelverk_name?: string | null
           title?: string
+          typ?: string | null
           updated_at?: string
         }
         Relationships: []
       }
       requirement: {
         Row: {
+          åtgärder: Json | null
+          beskrivning: string | null
           created_at: string
+          created_by: string | null
           description: string | null
           id: string
           legal_source_id: string
+          obligation: string | null
+          risknivå: string | null
+          subjekt: Json | null
+          titel: string | null
           title: string
+          trigger: Json | null
+          undantag: Json | null
         }
         Insert: {
+          åtgärder?: Json | null
+          beskrivning?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           id?: string
           legal_source_id: string
+          obligation?: string | null
+          risknivå?: string | null
+          subjekt?: Json | null
+          titel?: string | null
           title: string
+          trigger?: Json | null
+          undantag?: Json | null
         }
         Update: {
+          åtgärder?: Json | null
+          beskrivning?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           id?: string
           legal_source_id?: string
+          obligation?: string | null
+          risknivå?: string | null
+          subjekt?: Json | null
+          titel?: string | null
           title?: string
+          trigger?: Json | null
+          undantag?: Json | null
         }
         Relationships: [
           {
