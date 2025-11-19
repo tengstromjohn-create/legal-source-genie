@@ -1,4 +1,4 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -6,13 +6,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Sparkles, Loader2, CheckCircle2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const SourceDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [isGenerating, setIsGenerating] = useState(false);
+  const { user, loading: authLoading, isAdmin } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/auth");
+    }
+  }, [user, authLoading, navigate]);
 
   const { data: source, isLoading: sourceLoading } = useQuery({
     queryKey: ["legal_source", id],
@@ -72,12 +81,16 @@ const SourceDetail = () => {
     }
   };
 
-  if (sourceLoading) {
+  if (authLoading || sourceLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
+  }
+
+  if (!user) {
+    return null;
   }
 
   if (!source) {
@@ -111,19 +124,21 @@ const SourceDetail = () => {
                 Created {new Date(source.created_at).toLocaleDateString()}
               </p>
             </div>
-            <Button onClick={generateRequirements} disabled={isGenerating} className="gap-2">
-              {isGenerating ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4" />
-                  Generate Requirements
-                </>
-              )}
-            </Button>
+            {isAdmin && (
+              <Button onClick={generateRequirements} disabled={isGenerating} className="gap-2">
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    Generate Requirements
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </div>
       </header>
