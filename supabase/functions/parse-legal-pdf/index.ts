@@ -146,6 +146,9 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Extracted ${fullText.length} characters from PDF`);
+    
+    // Log first 500 chars to see the structure
+    console.log('First 500 chars:', fullText.substring(0, 500));
 
     // Return immediately and process in background
     const processInBackground = async () => {
@@ -154,7 +157,24 @@ Deno.serve(async (req) => {
       console.log(`Segmented into ${blocks.length} legal blocks`);
 
       if (blocks.length === 0) {
-        console.error('Could not find any legal sections in the document');
+        console.log('No segments found, saving entire document as one block');
+        // If no segments found, save the whole text as one source
+        const { error: insertError } = await supabase
+          .from('legal_source')
+          .insert({
+            regelverk_name: regelverkName,
+            typ,
+            referens,
+            title: regelverkName,
+            content: fullText.substring(0, 500),
+            full_text: fullText,
+          });
+
+        if (insertError) {
+          console.error('Insert error:', insertError);
+        } else {
+          console.log('Successfully saved entire document as one source');
+        }
         return;
       }
 
