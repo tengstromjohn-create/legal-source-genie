@@ -2,3 +2,6 @@ project_id = "goclbjumhryxqcumbbak"
 
 [functions.generate-requirements]
 verify_jwt = false
+
+[functions.parse-legal-pdf]
+verify_jwt = false
