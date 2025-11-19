@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Loader2, Sparkles } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Plus, FileText, Loader2, Sparkles, LogOut } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Sources = () => {
   const [title, setTitle] = useState("");
@@ -20,6 +21,14 @@ const Sources = () => {
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { user, loading: authLoading, isAdmin, signOut } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/auth");
+    }
+  }, [user, authLoading, navigate]);
 
   const { data: sources, isLoading } = useQuery({
     queryKey: ["legal_sources"],
@@ -117,6 +126,18 @@ const Sources = () => {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
@@ -126,16 +147,24 @@ const Sources = () => {
               <h1 className="text-3xl font-bold text-foreground">Legal Sources</h1>
               <p className="text-muted-foreground mt-1">Manage and analyze legal documents</p>
             </div>
-            <Button onClick={() => setIsFormOpen(!isFormOpen)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              New Source
-            </Button>
+            <div className="flex items-center gap-3">
+              {isAdmin && (
+                <Button onClick={() => setIsFormOpen(!isFormOpen)} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  New Source
+                </Button>
+              )}
+              <Button variant="outline" onClick={signOut} className="gap-2">
+                <LogOut className="h-4 w-4" />
+                Sign Out
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        {isFormOpen && (
+        {isFormOpen && isAdmin && (
           <Card className="mb-8">
             <CardHeader>
               <CardTitle>Create New Legal Source</CardTitle>
@@ -267,25 +296,27 @@ const Sources = () => {
                   <p className="text-sm text-muted-foreground line-clamp-3">
                     {source.content}
                   </p>
-                  <Button
-                    onClick={() => handleGenerateRequirements(source.id)}
-                    disabled={generatingId === source.id}
-                    variant="outline"
-                    size="sm"
-                    className="w-full gap-2"
-                  >
-                    {generatingId === source.id ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Genererar...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-4 w-4" />
-                        Generera krav
-                      </>
-                    )}
-                  </Button>
+                  {isAdmin && (
+                    <Button
+                      onClick={() => handleGenerateRequirements(source.id)}
+                      disabled={generatingId === source.id}
+                      variant="outline"
+                      size="sm"
+                      className="w-full gap-2"
+                    >
+                      {generatingId === source.id ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Genererar...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4" />
+                          Generera krav
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -295,11 +326,17 @@ const Sources = () => {
             <CardContent className="flex flex-col items-center justify-center py-12">
               <FileText className="h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold text-foreground mb-2">No legal sources yet</h3>
-              <p className="text-muted-foreground mb-4">Create your first legal source to get started</p>
-              <Button onClick={() => setIsFormOpen(true)} className="gap-2">
-                <Plus className="h-4 w-4" />
-                Create Source
-              </Button>
+              <p className="text-muted-foreground mb-4">
+                {isAdmin 
+                  ? "Create your first legal source to get started"
+                  : "No legal sources available. Contact an administrator."}
+              </p>
+              {isAdmin && (
+                <Button onClick={() => setIsFormOpen(true)} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Create Source
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}
