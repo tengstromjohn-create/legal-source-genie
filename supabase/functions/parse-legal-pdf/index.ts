@@ -5,47 +5,82 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface LegalBlock {
+type LawBlock = {
   lagrum: string;
   text: string;
-}
+};
 
-// Segment legal text into blocks based on Swedish legal numbering (e.g., "1 §", "2 kap.", etc.)
-function segmentLawText(fullText: string, regelverkName: string): LegalBlock[] {
-  const blocks: LegalBlock[] = [];
-  
-  // Split by paragraph markers (§) or chapter markers (kap.)
-  const paragraphPattern = /(\d+\s*§|\d+\s*kap\.|\d+\s*a\s*§)/gi;
-  const matches = Array.from(fullText.matchAll(paragraphPattern));
-  
-  if (matches.length === 0) {
-    // If no standard markers found, split by double newlines or numbered sections
-    const sections = fullText.split(/\n\n+/).filter(s => s.trim().length > 50);
-    sections.forEach((text, idx) => {
+// Förenklad segmentering för svenska lagar.
+// Du kan tweaka regexarna vid behov.
+function segmentLawText(fullText: string, regelverkName: string): LawBlock[] {
+  const lines = fullText.split("\n").map((l) => l.trim());
+  const blocks: LawBlock[] = [];
+
+  let currentChapter: string | null = null;   // t.ex. "8 kap."
+  let currentLagrum: string | null = null;    // t.ex. "8 kap. 4 §"
+  let currentLines: string[] = [];
+
+  // Kapitel-rader: "8 kap." eller "8 kap. Bolagets ledning"
+  const chapterRegex = /^(\d+\s*kap\.)/i;
+
+  // Paragrafrader:
+  // - antingen "8 kap. 4 §"
+  // - eller "4 §" (vi fyller på kapitel från currentChapter)
+  const fullLagrumRegex = /^(\d+\s*kap\.\s*\d+\s*§)/i;
+  const paragrafOnlyRegex = /^(\d+\s*§)/;
+
+  const flushBlock = () => {
+    if (currentLagrum && currentLines.length > 0) {
       blocks.push({
-        lagrum: `${regelverkName} § ${idx + 1}`,
-        text: text.trim()
+        lagrum: currentLagrum,
+        text: currentLines.join("\n").trim(),
       });
-    });
-    return blocks;
-  }
-  
-  // Extract text between markers
-  for (let i = 0; i < matches.length; i++) {
-    const currentMatch = matches[i];
-    const nextMatch = matches[i + 1];
-    
-    const startIndex = currentMatch.index!;
-    const endIndex = nextMatch ? nextMatch.index! : fullText.length;
-    
-    const text = fullText.substring(startIndex, endIndex).trim();
-    const lagrum = `${regelverkName} ${currentMatch[0].trim()}`;
-    
-    if (text.length > 20) { // Only include substantial sections
-      blocks.push({ lagrum, text });
+    }
+    currentLines = [];
+  };
+
+  for (const line of lines) {
+    if (!line) continue;
+
+    // 1) Först – kolla om det är en kapitelrad
+    const chapterMatch = line.match(chapterRegex);
+    if (chapterMatch) {
+      currentChapter = chapterMatch[1].trim(); // t.ex. "8 kap."
+      continue; // vi fortsätter, kapitel i sig är oftast inte ett eget lagrum
+    }
+
+    // 2) Kolla om det är ett "fullt" lagrum: "8 kap. 4 §"
+    const fullLagrumMatch = line.match(fullLagrumRegex);
+    if (fullLagrumMatch) {
+      // spara föregående block
+      flushBlock();
+      currentLagrum = fullLagrumMatch[1].trim();
+      // ta bort lagrumsdelen från raden, resten är ev. rubrik/ingress
+      const rest = line.replace(fullLagrumRegex, "").trim();
+      if (rest) currentLines.push(rest);
+      continue;
+    }
+
+    // 3) Kolla om det är en paragraf "4 §" och vi har ett currentChapter
+    const paragrafMatch = line.match(paragrafOnlyRegex);
+    if (paragrafMatch && currentChapter) {
+      flushBlock();
+      const paragraf = paragrafMatch[1].trim(); // "4 §"
+      currentLagrum = `${currentChapter} ${paragraf}`; // "8 kap. 4 §"
+      const rest = line.replace(paragrafOnlyRegex, "").trim();
+      if (rest) currentLines.push(rest);
+      continue;
+    }
+
+    // 4) Vanlig rad – hör till nuvarande lagrum
+    if (currentLagrum) {
+      currentLines.push(line);
     }
   }
-  
+
+  // sista blocket
+  flushBlock();
+
   return blocks;
 }
 
