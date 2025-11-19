@@ -141,52 +141,58 @@ Deno.serve(async (req) => {
 
     console.log(`Extracted ${fullText.length} characters from PDF`);
 
-    // Segment the text into legal blocks
-    const blocks = segmentLawText(fullText, regelverkName);
+    // Return immediately and process in background
+    const processInBackground = async () => {
+      // Segment the text into legal blocks
+      const blocks = segmentLawText(fullText, regelverkName);
+      console.log(`Segmented into ${blocks.length} legal blocks`);
 
-    if (blocks.length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'Could not find any legal sections in the document' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log(`Segmented into ${blocks.length} legal blocks`);
-
-    // Insert in batches to avoid CPU timeout
-    const batchSize = 50;
-    let totalInserted = 0;
-
-    for (let i = 0; i < blocks.length; i += batchSize) {
-      const batch = blocks.slice(i, i + batchSize);
-      const rowsToInsert = batch.map((block) => ({
-        regelverk_name: regelverkName,
-        typ,
-        lagrum: block.lagrum,
-        referens,
-        title: block.lagrum,
-        content: block.text.substring(0, 500),
-        full_text: block.text,
-      }));
-
-      const { error: insertError } = await supabase
-        .from('legal_source')
-        .insert(rowsToInsert);
-
-      if (insertError) {
-        console.error(`Batch ${i}-${i+batch.length} insert error:`, insertError);
-      } else {
-        totalInserted += rowsToInsert.length;
-        console.log(`Inserted batch: ${totalInserted}/${blocks.length}`);
+      if (blocks.length === 0) {
+        console.error('Could not find any legal sections in the document');
+        return;
       }
-    }
 
-    console.log(`Successfully inserted ${totalInserted} legal sources`);
+      // Insert in batches
+      const batchSize = 50;
+      let totalInserted = 0;
 
+      for (let i = 0; i < blocks.length; i += batchSize) {
+        const batch = blocks.slice(i, i + batchSize);
+        const rowsToInsert = batch.map((block) => ({
+          regelverk_name: regelverkName,
+          typ,
+          lagrum: block.lagrum,
+          referens,
+          title: block.lagrum,
+          content: block.text.substring(0, 500),
+          full_text: block.text,
+        }));
+
+        const { error: insertError } = await supabase
+          .from('legal_source')
+          .insert(rowsToInsert);
+
+        if (insertError) {
+          console.error(`Batch insert error:`, insertError);
+        } else {
+          totalInserted += rowsToInsert.length;
+          console.log(`Inserted: ${totalInserted}/${blocks.length}`);
+        }
+      }
+
+      console.log(`Completed: ${totalInserted} sources saved`);
+    };
+
+    // Start background processing
+    processInBackground().catch(err => console.error('Background error:', err));
+
+    // Return immediately
     return new Response(
       JSON.stringify({
         success: true,
-        inserted: totalInserted,
+        message: 'PDF processing started in background',
+        pages: numPages,
+        characters: fullText.length
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
