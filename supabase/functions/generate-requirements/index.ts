@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { LAW_SYSTEM_PROMPT } from "./prompts.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,30 +28,34 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Fetch the legal source
-    const { data: legalSource, error: fetchError } = await supabase
+    const { data: source, error: fetchError } = await supabase
       .from("legal_source")
       .select("*")
       .eq("id", legal_source_id)
       .single();
 
-    if (fetchError || !legalSource) {
+    if (fetchError || !source) {
       throw new Error("Legal source not found");
     }
 
-    console.log("Legal source fetched:", legalSource.title);
+    console.log("Legal source fetched:", source.title);
+
+    // Build user prompt with legal source data
+    const userPrompt = `
+Regelverk: ${source.regelverk_name || source.title}
+Lagrum: ${source.lagrum || ""}
+Typ: ${source.typ || ""}
+Referens: ${source.referens || ""}
+
+Text:
+${source.full_text || source.content}
+    `.trim();
 
     // Call Lovable AI to analyze the legal text
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
-
-    const systemPrompt = `You are a legal compliance expert. Analyze the provided legal document and extract key requirements. 
-Return your response as a JSON array of requirements, where each requirement has:
-- title: A clear, concise title for the requirement
-- description: A detailed description of what is required
-
-Focus on actionable compliance requirements, obligations, and responsibilities mentioned in the text.`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -61,88 +66,97 @@ Focus on actionable compliance requirements, obligations, and responsibilities m
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: `Analyze this legal document and extract requirements:\n\nTitle: ${legalSource.title}\n\nContent: ${legalSource.content}`,
-          },
+          { role: "system", content: LAW_SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
         ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "extract_requirements",
-              description: "Extract compliance requirements from the legal document",
-              parameters: {
-                type: "object",
-                properties: {
-                  requirements: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        title: { type: "string" },
-                        description: { type: "string" },
-                      },
-                      required: ["title", "description"],
-                      additionalProperties: false,
-                    },
-                  },
-                },
-                required: ["requirements"],
-                additionalProperties: false,
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "extract_requirements" } },
       }),
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
       console.error("AI gateway error:", aiResponse.status, errorText);
+      
+      if (aiResponse.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
+          { 
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          }
+        );
+      }
+      
+      if (aiResponse.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "Payment required. Please add credits to your Lovable workspace." }),
+          { 
+            status: 402,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          }
+        );
+      }
+      
       throw new Error(`AI gateway error: ${aiResponse.status}`);
     }
 
     const aiData = await aiResponse.json();
     console.log("AI response received");
 
-    // Parse the tool call response
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall || !toolCall.function?.arguments) {
-      throw new Error("No tool call in AI response");
+    // Parse the JSON response from the AI
+    const content = aiData.choices?.[0]?.message?.content || "";
+    
+    if (!content) {
+      console.error("No content in AI response");
+      throw new Error("No content received from AI");
     }
 
-    const parsedArgs = JSON.parse(toolCall.function.arguments);
-    const requirements = parsedArgs.requirements || [];
-
-    console.log(`Extracted ${requirements.length} requirements`);
-
-    // Insert requirements into database
-    const requirementsToInsert = requirements.map((req: any) => ({
-      legal_source_id,
-      title: req.title,
-      description: req.description,
-    }));
-
-    const { data: insertedRequirements, error: insertError } = await supabase
-      .from("requirement")
-      .insert(requirementsToInsert)
-      .select();
-
-    if (insertError) {
-      console.error("Error inserting requirements:", insertError);
-      throw insertError;
+    // Parse the JSON content
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch (parseError) {
+      console.error("Failed to parse AI response:", content);
+      throw new Error("Invalid JSON response from AI");
     }
 
-    console.log(`Successfully inserted ${insertedRequirements?.length} requirements`);
+    const krav = parsed.krav || [];
+    console.log(`Extracted ${krav.length} requirements`);
+
+    // Insert requirements into the database
+    if (krav.length > 0) {
+      const requirementsToInsert = krav.map((k: any) => ({
+        legal_source_id,
+        titel: k.titel,
+        beskrivning: k.beskrivning,
+        obligation: k.obligation || null,
+        risknivå: k.risknivå || null,
+        subjekt: k.subjekt || null,
+        trigger: k.trigger || null,
+        undantag: k.undantag || null,
+        åtgärder: k.åtgärder || null,
+        created_by: "ai",
+        // Keep legacy fields for backwards compatibility
+        title: k.titel,
+        description: k.beskrivning,
+      }));
+
+      const { error: insertError } = await supabase
+        .from("requirement")
+        .insert(requirementsToInsert);
+
+      if (insertError) {
+        console.error("Error inserting requirements:", insertError);
+        throw new Error("Failed to save requirements to database");
+      }
+
+      console.log(`Successfully inserted ${krav.length} requirements`);
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        count: insertedRequirements?.length || 0,
-        requirements: insertedRequirements,
+        inserted: krav.length,
+        requirements: krav,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -150,10 +164,9 @@ Focus on actionable compliance requirements, obligations, and responsibilities m
     );
   } catch (error) {
     console.error("Error in generate-requirements function:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
+      JSON.stringify({ error: errorMessage }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -161,3 +174,4 @@ Focus on actionable compliance requirements, obligations, and responsibilities m
     );
   }
 });
+

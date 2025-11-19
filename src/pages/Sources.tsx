@@ -12,6 +12,10 @@ import { Link } from "react-router-dom";
 const Sources = () => {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [regelverkName, setRegelverkName] = useState("");
+  const [lagrum, setLagrum] = useState("");
+  const [typ, setTyp] = useState("");
+  const [referens, setReferens] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -30,7 +34,7 @@ const Sources = () => {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (newSource: { title: string; content: string }) => {
+    mutationFn: async (newSource: any) => {
       const { data, error } = await supabase
         .from("legal_source")
         .insert([newSource])
@@ -46,9 +50,13 @@ const Sources = () => {
         title: "Success",
         description: "Legal source created successfully",
       });
-      setTitle("");
-      setContent("");
-      setIsFormOpen(false);
+    setTitle("");
+    setContent("");
+    setRegelverkName("");
+    setLagrum("");
+    setTyp("");
+    setReferens("");
+    setIsFormOpen(false);
     },
     onError: (error) => {
       toast({
@@ -69,7 +77,15 @@ const Sources = () => {
       });
       return;
     }
-    createMutation.mutate({ title, content });
+    createMutation.mutate({
+      title,
+      content,
+      full_text: content,
+      regelverk_name: regelverkName || null,
+      lagrum: lagrum || null,
+      typ: typ || null,
+      referens: referens || null,
+    });
   };
 
   return (
@@ -106,18 +122,76 @@ const Sources = () => {
                     id="title"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Enter document title"
+                    placeholder="e.g., GDPR Article 32"
                   />
                 </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="regelverk" className="text-sm font-medium text-foreground block mb-2">
+                      Regelverk (Optional)
+                    </label>
+                    <Input
+                      id="regelverk"
+                      value={regelverkName}
+                      onChange={(e) => setRegelverkName(e.target.value)}
+                      placeholder="e.g., GDPR, ISO 27001"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="lagrum" className="text-sm font-medium text-foreground block mb-2">
+                      Lagrum (Optional)
+                    </label>
+                    <Input
+                      id="lagrum"
+                      value={lagrum}
+                      onChange={(e) => setLagrum(e.target.value)}
+                      placeholder="e.g., Art. 32, § 5"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="typ" className="text-sm font-medium text-foreground block mb-2">
+                      Typ (Optional)
+                    </label>
+                    <select
+                      id="typ"
+                      value={typ}
+                      onChange={(e) => setTyp(e.target.value)}
+                      className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="">Välj typ</option>
+                      <option value="lag">Lag</option>
+                      <option value="förordning">Förordning</option>
+                      <option value="direktiv">Direktiv</option>
+                      <option value="föreskrift">Föreskrift</option>
+                      <option value="vägledning">Vägledning</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="referens" className="text-sm font-medium text-foreground block mb-2">
+                      Referens (Optional)
+                    </label>
+                    <Input
+                      id="referens"
+                      value={referens}
+                      onChange={(e) => setReferens(e.target.value)}
+                      placeholder="e.g., SFS 2018:218"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label htmlFor="content" className="text-sm font-medium text-foreground block mb-2">
-                    Content
+                    Legal Text
                   </label>
                   <Textarea
                     id="content"
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    placeholder="Paste the legal document content here"
+                    placeholder="Paste the legal text here..."
                     rows={8}
                   />
                 </div>
