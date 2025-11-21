@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Edit, Trash2, Search, FileText, ArrowLeft, Loader2 } from "lucide-react";
+import { Edit, Trash2, Search, FileText, ArrowLeft, Loader2, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { RequirementEditDialog } from "@/components/RequirementEditDialog";
@@ -149,6 +149,10 @@ const Requirements = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => navigate("/ask")} className="gap-2">
+                <Sparkles className="h-4 w-4" />
+                Ställ fråga
+              </Button>
               <span className="text-sm text-muted-foreground">
                 {filteredRequirements?.length || 0} krav
               </span>
