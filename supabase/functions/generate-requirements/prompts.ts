@@ -22,6 +22,7 @@ Output ska ALLTID vara strikt giltig JSON enligt modellen:
     {
       "titel": "STRING",
       "beskrivning": "STRING",
+      "paragraf": "STRING (exakt paragraf/kapitel/artikel-referens, t.ex. '8 kap. 18 §' eller 'Art. 32')",
       "subjekt": ["STRING"],
       "trigger": ["STRING"],
       "undantag": ["STRING"],
@@ -41,5 +42,7 @@ Output ska ALLTID vara strikt giltig JSON enligt modellen:
 
 Regler:
 - Om texten saknar materiella krav: sätt "krav": [].
+- Varje krav MÅSTE innehålla "paragraf" med exakt referens till vilken paragraf/kapitel/artikel i lagen som kravet kommer från.
+- Paragrafnummer ska anges exakt som det står i lagen (t.ex. "8 kap. 18 §", "Art. 32 GDPR", "15 § första stycket").
 - Ingen extra text, inga kommentarer – bara JSON.
 `;
