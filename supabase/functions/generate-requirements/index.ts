@@ -59,31 +59,31 @@ Text:
 ${textToAnalyze}
     `.trim();
 
-    // Call Lovable AI to analyze the legal text
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    // Call OpenAI to analyze the legal text
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY is not configured");
     }
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "gpt-5-2025-08-07",
         messages: [
           { role: "system", content: LAW_SYSTEM_PROMPT },
           { role: "user", content: userPrompt },
         ],
-        max_tokens: 16000,
+        max_completion_tokens: 16000,
       }),
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error("AI gateway error:", aiResponse.status, errorText);
+      console.error("OpenAI API error:", aiResponse.status, errorText);
       
       if (aiResponse.status === 429) {
         return new Response(
@@ -97,7 +97,7 @@ ${textToAnalyze}
       
       if (aiResponse.status === 402) {
         return new Response(
-          JSON.stringify({ error: "Payment required. Please add credits to your Lovable workspace." }),
+          JSON.stringify({ error: "Payment required. Please check your OpenAI account." }),
           { 
             status: 402,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -105,7 +105,7 @@ ${textToAnalyze}
         );
       }
       
-      throw new Error(`AI gateway error: ${aiResponse.status}`);
+      throw new Error(`OpenAI API error: ${aiResponse.status}`);
     }
 
     const aiData = await aiResponse.json();
