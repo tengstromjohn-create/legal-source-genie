@@ -18,6 +18,7 @@ interface Requirement {
   id: string;
   titel: string | null;
   beskrivning: string | null;
+  lagrum: string | null;
   subjekt: any;
   trigger: any;
   undantag: any;
@@ -41,6 +42,7 @@ export const RequirementEditDialog = ({
 }: RequirementEditDialogProps) => {
   const [titel, setTitel] = useState(requirement.titel || "");
   const [beskrivning, setBeskrivning] = useState(requirement.beskrivning || "");
+  const [lagrum, setLagrum] = useState(requirement.lagrum || "");
   const [subjekt, setSubjekt] = useState(
     Array.isArray(requirement.subjekt) ? requirement.subjekt.join(", ") : ""
   );
@@ -66,6 +68,7 @@ export const RequirementEditDialog = ({
         .update({
           titel,
           beskrivning,
+          lagrum,
           subjekt: subjekt.split(",").map((s) => s.trim()).filter(Boolean),
           trigger: trigger.split(",").map((t) => t.trim()).filter(Boolean),
           undantag: undantag.split(",").map((u) => u.trim()).filter(Boolean),
@@ -124,6 +127,16 @@ export const RequirementEditDialog = ({
               onChange={(e) => setBeskrivning(e.target.value)}
               placeholder="Detaljerad beskrivning"
               rows={4}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="lagrum">Paragraf/Lagrum</Label>
+            <Input
+              id="lagrum"
+              value={lagrum}
+              onChange={(e) => setLagrum(e.target.value)}
+              placeholder="t.ex. 8 kap. 18 §, Art. 32"
             />
           </div>
 

@@ -26,6 +26,7 @@ interface Requirement {
   title: string;
   beskrivning: string | null;
   description: string | null;
+  lagrum: string | null;
   subjekt: any;
   trigger: any;
   undantag: any;
@@ -72,7 +73,7 @@ const Requirements = () => {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data as Requirement[];
+      return data as unknown as Requirement[];
     },
   });
 
@@ -109,6 +110,7 @@ const Requirements = () => {
       req.title?.toLowerCase().includes(searchLower) ||
       req.beskrivning?.toLowerCase().includes(searchLower) ||
       req.description?.toLowerCase().includes(searchLower) ||
+      req.lagrum?.toLowerCase().includes(searchLower) ||
       req.legal_source?.title?.toLowerCase().includes(searchLower) ||
       req.legal_source?.lagrum?.toLowerCase().includes(searchLower))
     );
@@ -199,9 +201,17 @@ const Requirements = () => {
                     <CardTitle className="text-xl">
                       {req.titel || req.title}
                     </CardTitle>
-                    <CardDescription className="mt-2">
-                      {req.legal_source?.regelverk_name} -{" "}
-                      {req.legal_source?.lagrum || req.legal_source?.title}
+                    <CardDescription className="mt-2 space-y-1">
+                      <div>
+                        <span className="font-semibold">Källa:</span>{" "}
+                        {req.legal_source?.regelverk_name || req.legal_source?.title}
+                      </div>
+                      {req.lagrum && (
+                        <div>
+                          <span className="font-semibold">Paragraf:</span>{" "}
+                          {req.lagrum}
+                        </div>
+                      )}
                     </CardDescription>
                   </div>
                   {isAdmin && (

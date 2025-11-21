@@ -166,6 +166,7 @@ ${textToAnalyze}
         legal_source_id,
         titel: k.titel,
         beskrivning: k.beskrivning,
+        lagrum: k.paragraf || null,
         obligation: k.obligation || null,
         risknivå: k.risknivå || null,
         subjekt: k.subjekt || null,
