@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          embedding: string | null
           full_text: string | null
           id: string
           lagrum: string | null
@@ -30,6 +31,7 @@ export type Database = {
         Insert: {
           content: string
           created_at?: string
+          embedding?: string | null
           full_text?: string | null
           id?: string
           lagrum?: string | null
@@ -42,6 +44,7 @@ export type Database = {
         Update: {
           content?: string
           created_at?: string
+          embedding?: string | null
           full_text?: string | null
           id?: string
           lagrum?: string | null
@@ -165,6 +168,21 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      match_legal_sources: {
+        Args: {
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          content: string
+          id: string
+          lagrum: string
+          regelverk_name: string
+          similarity: number
+          title: string
+        }[]
       }
     }
     Enums: {
