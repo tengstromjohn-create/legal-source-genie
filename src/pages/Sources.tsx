@@ -12,6 +12,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { PdfUploadDialog } from "@/components/PdfUploadDialog";
 import { RiksdagenImportDialog } from "@/components/RiksdagenImportDialog";
+import { GenerationProgressDialog, SourceProgress } from "@/components/GenerationProgressDialog";
 
 const Sources = () => {
   const [title, setTitle] = useState("");
@@ -25,6 +26,8 @@ const Sources = () => {
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const [isBatchGenerating, setIsBatchGenerating] = useState(false);
   const [isGeneratingEmbeddings, setIsGeneratingEmbeddings] = useState(false);
+  const [progressSources, setProgressSources] = useState<SourceProgress[]>([]);
+  const [progressIndex, setProgressIndex] = useState(0);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -105,6 +108,16 @@ const Sources = () => {
   };
 
   const handleGenerateRequirements = async (sourceId: string) => {
+    const source = sources?.find(s => s.id === sourceId);
+    if (!source) return;
+    
+    // Initialize progress for single source
+    setProgressSources([{
+      id: source.id,
+      title: source.title,
+      status: "processing",
+    }]);
+    setProgressIndex(0);
     setGeneratingId(sourceId);
     
     try {
@@ -115,18 +128,44 @@ const Sources = () => {
       if (error) throw error;
 
       const inserted = data?.inserted || 0;
-      toast({
-        title: "Krav skapade",
-        description: `${inserted} krav har extraherats från dokumentet`,
-      });
       
-      queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
+      // Update to completed
+      setProgressSources([{
+        id: source.id,
+        title: source.title,
+        status: "completed",
+        requirementsCount: inserted,
+      }]);
+      setProgressIndex(1);
+      
+      // Wait a bit before closing
+      setTimeout(() => {
+        toast({
+          title: "Krav skapade",
+          description: `${inserted} krav har extraherats från dokumentet`,
+        });
+        
+        setProgressSources([]);
+        queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
+      }, 1500);
     } catch (error: any) {
-      toast({
-        title: "Fel",
-        description: error.message || "Kunde inte generera krav",
-        variant: "destructive",
-      });
+      // Update to failed
+      setProgressSources([{
+        id: source.id,
+        title: source.title,
+        status: "failed",
+        error: error.message || "Kunde inte generera krav",
+      }]);
+      setProgressIndex(1);
+      
+      setTimeout(() => {
+        toast({
+          title: "Fel",
+          description: error.message || "Kunde inte generera krav",
+          variant: "destructive",
+        });
+        setProgressSources([]);
+      }, 1500);
     } finally {
       setGeneratingId(null);
     }
@@ -142,11 +181,30 @@ const Sources = () => {
       return;
     }
 
+    // Initialize progress tracking
+    const sourcesToProcess = sources?.filter(s => selectedSources.has(s.id)) || [];
+    const initialProgress: SourceProgress[] = sourcesToProcess.map(s => ({
+      id: s.id,
+      title: s.title,
+      status: "pending" as const,
+    }));
+    
+    setProgressSources(initialProgress);
+    setProgressIndex(0);
     setIsBatchGenerating(true);
+
     let successCount = 0;
     let totalInserted = 0;
+    const sourceArray = Array.from(selectedSources);
 
-    for (const sourceId of selectedSources) {
+    for (let i = 0; i < sourceArray.length; i++) {
+      const sourceId = sourceArray[i];
+      
+      // Update to processing
+      setProgressSources(prev => prev.map(s => 
+        s.id === sourceId ? { ...s, status: "processing" as const } : s
+      ));
+      
       try {
         const { data, error } = await supabase.functions.invoke('generate-requirements', {
           body: { legal_source_id: sourceId }
@@ -157,19 +215,40 @@ const Sources = () => {
         const inserted = data?.inserted || 0;
         totalInserted += inserted;
         successCount++;
+        
+        // Update to completed
+        setProgressSources(prev => prev.map(s => 
+          s.id === sourceId 
+            ? { ...s, status: "completed" as const, requirementsCount: inserted }
+            : s
+        ));
       } catch (error: any) {
         console.error(`Failed to generate for ${sourceId}:`, error);
+        
+        // Update to failed
+        setProgressSources(prev => prev.map(s => 
+          s.id === sourceId 
+            ? { ...s, status: "failed" as const, error: error.message || "Okänt fel" }
+            : s
+        ));
       }
+      
+      setProgressIndex(i + 1);
     }
 
-    setIsBatchGenerating(false);
-    setSelectedSources(new Set());
-    queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
+    // Wait a bit before closing so user can see final state
+    setTimeout(() => {
+      setIsBatchGenerating(false);
+      setSelectedSources(new Set());
+      setProgressSources([]);
+      setProgressIndex(0);
+      queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
 
-    toast({
-      title: "Batch-generering klar",
-      description: `${totalInserted} krav skapade från ${successCount} av ${selectedSources.size} källor`,
-    });
+      toast({
+        title: "Batch-generering klar",
+        description: `${totalInserted} krav skapade från ${successCount} av ${sourceArray.length} källor`,
+      });
+    }, 1500);
   };
 
   const toggleSourceSelection = (sourceId: string) => {
@@ -505,6 +584,12 @@ const Sources = () => {
           </Card>
         )}
       </main>
+
+      <GenerationProgressDialog
+        open={isBatchGenerating}
+        sources={progressSources}
+        currentIndex={progressIndex}
+      />
     </div>
   );
 };
