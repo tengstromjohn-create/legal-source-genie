@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { PdfUploadDialog } from "@/components/PdfUploadDialog";
+import { RiksdagenImportDialog } from "@/components/RiksdagenImportDialog";
 
 const Sources = () => {
   const [title, setTitle] = useState("");
@@ -248,6 +249,7 @@ const Sources = () => {
               </Button>
               {isAdmin && (
                 <>
+                  <RiksdagenImportDialog />
                   <PdfUploadDialog />
                   <Button onClick={() => setIsFormOpen(!isFormOpen)} className="gap-2">
                     <Plus className="h-4 w-4" />
