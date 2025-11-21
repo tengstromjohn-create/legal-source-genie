@@ -296,6 +296,10 @@ const Sources = () => {
                 <FileText className="h-4 w-4" />
                 Visa Krav
               </Button>
+              <Button variant="outline" onClick={() => navigate("/ask")} className="gap-2">
+                <Sparkles className="h-4 w-4" />
+                Ställ fråga
+              </Button>
               {isAdmin && (
                 <>
                   <RiksdagenImportDialog />

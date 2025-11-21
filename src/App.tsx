@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import Sources from "./pages/Sources";
 import SourceDetail from "./pages/SourceDetail";
 import Requirements from "./pages/Requirements";
+import AskQuestion from "./pages/AskQuestion";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -25,6 +26,7 @@ const App = () => (
             <Route path="/sources" element={<Sources />} />
             <Route path="/sources/:id" element={<SourceDetail />} />
             <Route path="/requirements" element={<Requirements />} />
+            <Route path="/ask" element={<AskQuestion />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
