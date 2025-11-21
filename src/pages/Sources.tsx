@@ -24,6 +24,7 @@ const Sources = () => {
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const [isBatchGenerating, setIsBatchGenerating] = useState(false);
+  const [isGeneratingEmbeddings, setIsGeneratingEmbeddings] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -191,6 +192,36 @@ const Sources = () => {
     }
   };
 
+  const handleGenerateEmbeddings = async () => {
+    setIsGeneratingEmbeddings(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-embeddings', {
+        body: { limit: 50 }
+      });
+
+      if (error) throw error;
+
+      const updated = data?.updated || 0;
+      const total = data?.total || 0;
+      
+      toast({
+        title: "Embeddings skapade",
+        description: `${updated} av ${total} källor har fått embeddings`,
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
+    } catch (error: any) {
+      toast({
+        title: "Fel",
+        description: error.message || "Kunde inte generera embeddings",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingEmbeddings(false);
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -215,6 +246,24 @@ const Sources = () => {
             <div className="flex items-center gap-3">
               {isAdmin && sources && sources.length > 0 && (
                 <>
+                  <Button 
+                    onClick={handleGenerateEmbeddings}
+                    disabled={isGeneratingEmbeddings}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    {isGeneratingEmbeddings ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Genererar embeddings...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Skapa Embeddings
+                      </>
+                    )}
+                  </Button>
                   <Button 
                     variant="outline" 
                     onClick={toggleSelectAll}
