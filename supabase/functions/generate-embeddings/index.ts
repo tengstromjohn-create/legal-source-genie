@@ -22,10 +22,10 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get Lovable API key
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    // Get OpenAI API key
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY is not configured");
     }
 
     // Fetch sources without embeddings
@@ -67,11 +67,11 @@ serve(async (req) => {
           ? textToEmbed.substring(0, 32000)
           : textToEmbed;
 
-        // Call Lovable AI embeddings API
-        const embeddingResponse = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
+        // Call OpenAI embeddings API
+        const embeddingResponse = await fetch("https://api.openai.com/v1/embeddings", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+            "Authorization": `Bearer ${OPENAI_API_KEY}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
@@ -82,8 +82,8 @@ serve(async (req) => {
 
         if (!embeddingResponse.ok) {
           const errorText = await embeddingResponse.text();
-          console.error(`Lovable AI error for source ${source.id}:`, embeddingResponse.status, errorText);
-          errors.push({ id: source.id, error: `Lovable AI error: ${embeddingResponse.status}` });
+          console.error(`OpenAI API error for source ${source.id}:`, embeddingResponse.status, errorText);
+          errors.push({ id: source.id, error: `OpenAI API error: ${embeddingResponse.status}` });
           continue;
         }
 

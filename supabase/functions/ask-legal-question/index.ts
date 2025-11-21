@@ -22,9 +22,9 @@ serve(async (req) => {
       );
     }
 
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-    if (!lovableApiKey) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openaiApiKey) {
+      throw new Error('OPENAI_API_KEY is not configured');
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -33,11 +33,11 @@ serve(async (req) => {
 
     console.log('Generating embedding for question:', question);
 
-    // 1) Create embedding for the question using Lovable AI
-    const embeddingResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
+    // 1) Create embedding for the question
+    const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
+        'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -48,7 +48,7 @@ serve(async (req) => {
 
     if (!embeddingResponse.ok) {
       const errorText = await embeddingResponse.text();
-      console.error('Lovable AI embedding error:', errorText);
+      console.error('OpenAI embedding error:', errorText);
       throw new Error('Failed to generate embedding');
     }
 
@@ -101,27 +101,29 @@ ${question}
 Svara tydligt, på svenska, och hänvisa till relevanta lagrum (ange lagrumstextens rubrik eller nummer).
 `;
 
-    console.log('Asking AI for answer...');
+    console.log('Asking GPT for answer...');
 
-    // 4) Ask LLM using Lovable AI
-    const completionResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // 4) Ask LLM
+    const completionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
+        'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: 'Du är en noggrann juridisk assistent.' },
           { role: 'user', content: prompt },
         ],
+        temperature: 0.7,
+        max_tokens: 1000,
       }),
     });
 
     if (!completionResponse.ok) {
       const errorText = await completionResponse.text();
-      console.error('Lovable AI completion error:', errorText);
+      console.error('OpenAI completion error:', errorText);
       throw new Error('Failed to get answer from AI');
     }
 
