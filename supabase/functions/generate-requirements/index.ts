@@ -77,7 +77,7 @@ ${textToAnalyze}
           { role: "system", content: LAW_SYSTEM_PROMPT },
           { role: "user", content: userPrompt },
         ],
-        max_tokens: 8000,
+        max_tokens: 16000,
       }),
     });
 
@@ -131,13 +131,30 @@ ${textToAnalyze}
         const match = jsonContent.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
         if (match) {
           jsonContent = match[1].trim();
+        } else {
+          // If no closing backticks found, try to extract everything after opening
+          jsonContent = jsonContent.replace(/^```(?:json)?\s*\n?/, '');
         }
+      }
+      
+      // Check if JSON appears to be truncated (no closing brace/bracket)
+      const trimmed = jsonContent.trim();
+      if (!trimmed.endsWith('}') && !trimmed.endsWith(']')) {
+        console.error("AI response appears truncated:", content.substring(0, 1000));
+        throw new Error("AI response was truncated. The document may be too large. Try splitting it into smaller sections.");
       }
       
       parsed = JSON.parse(jsonContent);
     } catch (parseError) {
-      console.error("Failed to parse AI response:", content.substring(0, 500));
-      throw new Error("Invalid JSON response from AI");
+      console.error("Failed to parse AI response:", content.substring(0, 1000));
+      console.error("Parse error:", parseError);
+      
+      // Check if it's a truncation issue
+      if (parseError instanceof SyntaxError && content.length > 5000) {
+        throw new Error("Dokumentet är för stort och AI-svaret blev trunkat. Prova att dela upp dokumentet i mindre delar.");
+      }
+      
+      throw new Error("Invalid JSON response from AI: " + (parseError instanceof Error ? parseError.message : "Unknown error"));
     }
 
     const krav = parsed.krav || [];
