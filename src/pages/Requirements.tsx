@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useRequirements, Requirement } from "@/hooks/use-requirements";
+import { useRequirements, type Requirement } from "@/hooks/use-requirements";
 
 const Requirements = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -30,7 +30,8 @@ const Requirements = () => {
     isLoading, 
     deleteRequirement, 
     isDeleting,
-    reload,
+    updateRequirement,
+    isUpdating,
   } = useRequirements();
 
   const filteredRequirements = requirements?.filter((req) => {
@@ -40,7 +41,6 @@ const Requirements = () => {
       req.title?.toLowerCase().includes(searchLower) ||
       req.beskrivning?.toLowerCase().includes(searchLower) ||
       req.description?.toLowerCase().includes(searchLower) ||
-      req.lagrum?.toLowerCase().includes(searchLower) ||
       req.legal_source?.title?.toLowerCase().includes(searchLower) ||
       req.legal_source?.lagrum?.toLowerCase().includes(searchLower))
     );
@@ -52,6 +52,11 @@ const Requirements = () => {
         onSuccess: () => setDeleteRequirementId(null),
       });
     }
+  };
+
+  const handleSaveRequirement = async (id: string, updates: Parameters<typeof updateRequirement>[1]) => {
+    await updateRequirement(id, updates);
+    setSelectedRequirement(null);
   };
 
   if (isLoading) {
@@ -144,10 +149,10 @@ const Requirements = () => {
                         <span className="font-semibold">Källa:</span>{" "}
                         {req.legal_source?.regelverk_name || req.legal_source?.title}
                       </div>
-                      {req.lagrum && (
+                      {req.legal_source?.lagrum && (
                         <div>
                           <span className="font-semibold">Paragraf:</span>{" "}
-                          {req.lagrum}
+                          {req.legal_source.lagrum}
                         </div>
                       )}
                     </CardDescription>
@@ -250,7 +255,8 @@ const Requirements = () => {
           requirement={selectedRequirement}
           open={!!selectedRequirement}
           onOpenChange={(open) => !open && setSelectedRequirement(null)}
-          onSuccess={() => reload()}
+          onSave={handleSaveRequirement}
+          isSaving={isUpdating}
         />
       )}
 
