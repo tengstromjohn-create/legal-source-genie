@@ -5,6 +5,7 @@ import { LegalSource, CreateLegalSourceInput, GenerateRequirementsResult } from 
 import { mapSourceRowsToLegalSources, mapSourceRowToLegalSource, mapCreateSourceInputToRow } from "@/lib/domain";
 import { generateRequirementsForSource, generateEmbeddings as generateEmbeddingsApi } from "@/lib/api";
 import { useActiveWorkspaceId } from "@/hooks/use-workspaces";
+import { logError, getUserFriendlyMessage } from "@/lib/error";
 
 export type { LegalSource, CreateLegalSourceInput, GenerateRequirementsResult };
 
@@ -28,7 +29,10 @@ export function useLegalSources() {
       
       const { data, error } = await query;
       
-      if (error) throw error;
+      if (error) {
+        logError(error, { component: "useLegalSources", action: "fetch", workspaceId });
+        throw error;
+      }
       return mapSourceRowsToLegalSources(data);
     },
     enabled: true,
@@ -47,40 +51,54 @@ export function useLegalSources() {
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        logError(error, { component: "useLegalSources", action: "create", workspaceId });
+        throw error;
+      }
       return mapSourceRowToLegalSource(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["legal_sources", workspaceId] });
       toast({
-        title: "Success",
-        description: "Legal source created successfully",
+        title: "Klart",
+        description: "Rättskälla skapad",
       });
     },
     onError: (error: Error) => {
+      logError(error, { component: "useLegalSources", action: "create", workspaceId });
       toast({
-        title: "Error",
-        description: error.message,
+        title: "Fel",
+        description: getUserFriendlyMessage(error),
         variant: "destructive",
       });
     },
   });
 
   const generateRequirements = async (sourceId: string): Promise<GenerateRequirementsResult> => {
-    const result = await generateRequirementsForSource(sourceId, workspaceId);
-    
-    queryClient.invalidateQueries({ queryKey: ["legal_sources", workspaceId] });
-    queryClient.invalidateQueries({ queryKey: ["requirements", workspaceId] });
-    
-    return result;
+    try {
+      const result = await generateRequirementsForSource(sourceId, workspaceId);
+      
+      queryClient.invalidateQueries({ queryKey: ["legal_sources", workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ["requirements", workspaceId] });
+      
+      return result;
+    } catch (error) {
+      logError(error, { component: "useLegalSources", action: "generateRequirements", sourceId, workspaceId });
+      throw error;
+    }
   };
 
   const generateEmbeddings = async (limit: number = 50) => {
-    const result = await generateEmbeddingsApi(limit);
-    
-    queryClient.invalidateQueries({ queryKey: ["legal_sources", workspaceId] });
-    
-    return result;
+    try {
+      const result = await generateEmbeddingsApi(limit);
+      
+      queryClient.invalidateQueries({ queryKey: ["legal_sources", workspaceId] });
+      
+      return result;
+    } catch (error) {
+      logError(error, { component: "useLegalSources", action: "generateEmbeddings", workspaceId });
+      throw error;
+    }
   };
 
   return {
@@ -105,7 +123,10 @@ export function useLegalSource(id: string | undefined) {
         .eq("id", id!)
         .single();
       
-      if (error) throw error;
+      if (error) {
+        logError(error, { component: "useLegalSource", action: "fetch", sourceId: id });
+        throw error;
+      }
       return mapSourceRowToLegalSource(data);
     },
     enabled: !!id,

@@ -8,19 +8,65 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Structured error response
+interface ApiErrorResponse {
+  errorCode: string;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+function createErrorResponse(
+  errorCode: string,
+  message: string,
+  status: number,
+  details?: Record<string, unknown>
+): Response {
+  const body: ApiErrorResponse = { errorCode, message };
+  if (details) body.details = details;
+  
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function logWithContext(level: "info" | "error" | "warn", message: string, context: Record<string, unknown>) {
+  const logData = {
+    timestamp: new Date().toISOString(),
+    level,
+    message,
+    ...context,
+  };
+  
+  if (level === "error") {
+    console.error(JSON.stringify(logData));
+  } else if (level === "warn") {
+    console.warn(JSON.stringify(logData));
+  } else {
+    console.log(JSON.stringify(logData));
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const requestContext: Record<string, unknown> = {
+    function: "generate-requirements",
+  };
+
   try {
     const { legal_source_id, workspace_id } = await req.json();
+    requestContext.sourceId = legal_source_id;
+    requestContext.workspaceId = workspace_id;
 
     if (!legal_source_id) {
-      throw new Error("legal_source_id is required");
+      logWithContext("warn", "Missing legal_source_id", requestContext);
+      return createErrorResponse("VALIDATION_ERROR", "legal_source_id is required", 400);
     }
 
-    console.log("Generating requirements for legal source:", legal_source_id, "workspace:", workspace_id);
+    logWithContext("info", "Starting requirements generation", requestContext);
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -35,10 +81,12 @@ serve(async (req) => {
       .single();
 
     if (fetchError || !source) {
-      throw new Error("Legal source not found");
+      logWithContext("error", "Legal source not found", { ...requestContext, dbError: fetchError });
+      return createErrorResponse("NOT_FOUND", "Legal source not found", 404, { sourceId: legal_source_id });
     }
 
-    console.log("Legal source fetched:", source.title);
+    requestContext.sourceTitle = source.title;
+    logWithContext("info", "Legal source fetched", requestContext);
 
     // Limit text to 30000 characters to avoid timeout
     const fullText = source.full_text || source.content || '';
@@ -46,7 +94,7 @@ serve(async (req) => {
       ? fullText.substring(0, 30000) + '\n\n[Text truncated due to length...]'
       : fullText;
     
-    console.log(`Analyzing ${textToAnalyze.length} characters (original: ${fullText.length})`);
+    logWithContext("info", `Analyzing text`, { ...requestContext, originalLength: fullText.length, analyzedLength: textToAnalyze.length });
 
     // Build user prompt with legal source data
     const userPrompt = `
@@ -62,7 +110,8 @@ ${textToAnalyze}
     // Call OpenAI to analyze the legal text
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY is not configured");
+      logWithContext("error", "OPENAI_API_KEY not configured", requestContext);
+      return createErrorResponse("SERVER_ERROR", "AI service not configured", 500);
     }
 
     const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -83,40 +132,28 @@ ${textToAnalyze}
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error("OpenAI API error:", aiResponse.status, errorText);
+      logWithContext("error", "OpenAI API error", { ...requestContext, status: aiResponse.status, response: errorText });
       
       if (aiResponse.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-          { 
-            status: 429,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
-          }
-        );
+        return createErrorResponse("RATE_LIMIT", "För många förfrågningar. Försök igen senare.", 429);
       }
       
       if (aiResponse.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Payment required. Please check your OpenAI account." }),
-          { 
-            status: 402,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
-          }
-        );
+        return createErrorResponse("PAYMENT_REQUIRED", "Betalning krävs. Kontrollera OpenAI-kontot.", 402);
       }
       
-      throw new Error(`OpenAI API error: ${aiResponse.status}`);
+      return createErrorResponse("AI_ERROR", "AI-tjänsten kunde inte bearbeta begäran", 500, { status: aiResponse.status });
     }
 
     const aiData = await aiResponse.json();
-    console.log("AI response received");
+    logWithContext("info", "AI response received", requestContext);
 
     // Parse the JSON response from the AI
     const content = aiData.choices?.[0]?.message?.content || "";
     
     if (!content) {
-      console.error("No content in AI response");
-      throw new Error("No content received from AI");
+      logWithContext("error", "No content in AI response", requestContext);
+      return createErrorResponse("AI_ERROR", "Inget svar från AI", 500);
     }
 
     // Parse the JSON content
@@ -127,38 +164,38 @@ ${textToAnalyze}
       
       // Check if wrapped in markdown code blocks
       if (jsonContent.startsWith('```')) {
-        // Extract JSON from markdown code block
         const match = jsonContent.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
         if (match) {
           jsonContent = match[1].trim();
         } else {
-          // If no closing backticks found, try to extract everything after opening
           jsonContent = jsonContent.replace(/^```(?:json)?\s*\n?/, '');
         }
       }
       
-      // Check if JSON appears to be truncated (no closing brace/bracket)
+      // Check if JSON appears to be truncated
       const trimmed = jsonContent.trim();
       if (!trimmed.endsWith('}') && !trimmed.endsWith(']')) {
-        console.error("AI response appears truncated:", content.substring(0, 1000));
-        throw new Error("AI response was truncated. The document may be too large. Try splitting it into smaller sections.");
+        logWithContext("error", "AI response appears truncated", { ...requestContext, contentLength: content.length });
+        return createErrorResponse("PARSE_ERROR", "AI-svaret blev trunkat. Dokumentet kan vara för stort.", 422);
       }
       
       parsed = JSON.parse(jsonContent);
     } catch (parseError) {
-      console.error("Failed to parse AI response:", content.substring(0, 1000));
-      console.error("Parse error:", parseError);
+      logWithContext("error", "Failed to parse AI response", { 
+        ...requestContext, 
+        parseError: parseError instanceof Error ? parseError.message : "Unknown",
+        contentPreview: content.substring(0, 500)
+      });
       
-      // Check if it's a truncation issue
-      if (parseError instanceof SyntaxError && content.length > 5000) {
-        throw new Error("Dokumentet är för stort och AI-svaret blev trunkat. Prova att dela upp dokumentet i mindre delar.");
+      if (content.length > 5000) {
+        return createErrorResponse("PARSE_ERROR", "Dokumentet är för stort och AI-svaret blev trunkat. Prova att dela upp dokumentet.", 422);
       }
       
-      throw new Error("Invalid JSON response from AI: " + (parseError instanceof Error ? parseError.message : "Unknown error"));
+      return createErrorResponse("PARSE_ERROR", "Kunde inte tolka AI-svaret", 422);
     }
 
     const krav = parsed.krav || [];
-    console.log(`Extracted ${krav.length} requirements`);
+    logWithContext("info", `Extracted requirements`, { ...requestContext, count: krav.length });
 
     // Insert requirements into the database
     if (krav.length > 0) {
@@ -175,7 +212,6 @@ ${textToAnalyze}
         undantag: k.undantag || null,
         åtgärder: k.åtgärder || null,
         created_by: "ai",
-        // Keep legacy fields for backwards compatibility
         title: k.titel,
         description: k.beskrivning,
       }));
@@ -185,11 +221,11 @@ ${textToAnalyze}
         .insert(requirementsToInsert);
 
       if (insertError) {
-        console.error("Error inserting requirements:", insertError);
-        throw new Error("Failed to save requirements to database");
+        logWithContext("error", "Error inserting requirements", { ...requestContext, dbError: insertError });
+        return createErrorResponse("SERVER_ERROR", "Kunde inte spara krav till databasen", 500);
       }
 
-      console.log(`Successfully inserted ${krav.length} requirements`);
+      logWithContext("info", `Successfully inserted requirements`, { ...requestContext, count: krav.length });
     }
 
     return new Response(
@@ -203,15 +239,16 @@ ${textToAnalyze}
       }
     );
   } catch (error) {
-    console.error("Error in generate-requirements function:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+    logWithContext("error", "Unhandled error in generate-requirements", {
+      ...requestContext,
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    
+    return createErrorResponse(
+      "SERVER_ERROR",
+      error instanceof Error ? error.message : "Ett oväntat fel uppstod",
+      500
     );
   }
 });
-

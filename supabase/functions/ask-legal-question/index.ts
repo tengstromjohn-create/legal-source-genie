@@ -7,31 +7,77 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Structured error response
+interface ApiErrorResponse {
+  errorCode: string;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+function createErrorResponse(
+  errorCode: string,
+  message: string,
+  status: number,
+  details?: Record<string, unknown>
+): Response {
+  const body: ApiErrorResponse = { errorCode, message };
+  if (details) body.details = details;
+  
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function logWithContext(level: "info" | "error" | "warn", message: string, context: Record<string, unknown>) {
+  const logData = {
+    timestamp: new Date().toISOString(),
+    level,
+    message,
+    ...context,
+  };
+  
+  if (level === "error") {
+    console.error(JSON.stringify(logData));
+  } else if (level === "warn") {
+    console.warn(JSON.stringify(logData));
+  } else {
+    console.log(JSON.stringify(logData));
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const requestContext: Record<string, unknown> = {
+    function: "ask-legal-question",
+  };
+
   try {
-    const { question } = await req.json();
+    const { question, workspace_id } = await req.json();
+    requestContext.workspaceId = workspace_id;
 
     if (!question) {
-      return new Response(
-        JSON.stringify({ error: "Fråga (question) saknas" }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      logWithContext("warn", "Missing question parameter", requestContext);
+      return createErrorResponse("VALIDATION_ERROR", "Fråga (question) saknas", 400);
     }
+
+    requestContext.questionLength = question.length;
+    logWithContext("info", "Processing legal question", requestContext);
 
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openaiApiKey) {
-      throw new Error('OPENAI_API_KEY is not configured');
+      logWithContext("error", "OPENAI_API_KEY not configured", requestContext);
+      return createErrorResponse("SERVER_ERROR", "AI-tjänsten är inte konfigurerad", 500);
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log('Generating embedding for question:', question);
+    logWithContext("info", "Generating embedding for question", requestContext);
 
     // 1) Create embedding for the question
     const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
@@ -48,14 +94,19 @@ serve(async (req) => {
 
     if (!embeddingResponse.ok) {
       const errorText = await embeddingResponse.text();
-      console.error('OpenAI embedding error:', errorText);
-      throw new Error('Failed to generate embedding');
+      logWithContext("error", "OpenAI embedding error", { ...requestContext, status: embeddingResponse.status, response: errorText });
+      
+      if (embeddingResponse.status === 429) {
+        return createErrorResponse("RATE_LIMIT", "För många förfrågningar. Försök igen senare.", 429);
+      }
+      
+      return createErrorResponse("AI_ERROR", "Kunde inte skapa embedding", 500);
     }
 
     const embeddingData = await embeddingResponse.json();
     const queryEmbedding = embeddingData.data[0].embedding;
 
-    console.log('Searching for relevant legal sources...');
+    logWithContext("info", "Searching for relevant legal sources", requestContext);
 
     // 2) Find relevant legal texts using RPC function
     const { data: matches, error } = await supabase.rpc('match_legal_sources', {
@@ -65,11 +116,12 @@ serve(async (req) => {
     });
 
     if (error) {
-      console.error('Database search error:', error);
-      throw new Error('Sökfel i databasen');
+      logWithContext("error", "Database search error", { ...requestContext, dbError: error });
+      return createErrorResponse("SERVER_ERROR", "Sökfel i databasen", 500);
     }
 
     if (!matches || matches.length === 0) {
+      logWithContext("info", "No matching sources found", requestContext);
       return new Response(
         JSON.stringify({
           answer: 'Inga relevanta lagrum hittades för din fråga. Försök omformulera frågan eller kontrollera att lagtexter har laddats upp och fått embeddings.',
@@ -79,7 +131,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Found ${matches.length} relevant sources`);
+    logWithContext("info", `Found relevant sources`, { ...requestContext, matchCount: matches.length });
 
     // 3) Build context from matches
     const contextText = matches
@@ -101,7 +153,7 @@ ${question}
 Svara tydligt, på svenska, och hänvisa till relevanta lagrum (ange lagrumstextens rubrik eller nummer).
 `;
 
-    console.log('Asking GPT for answer...');
+    logWithContext("info", "Asking GPT for answer", requestContext);
 
     // 4) Ask LLM
     const completionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -123,14 +175,19 @@ Svara tydligt, på svenska, och hänvisa till relevanta lagrum (ange lagrumstext
 
     if (!completionResponse.ok) {
       const errorText = await completionResponse.text();
-      console.error('OpenAI completion error:', errorText);
-      throw new Error('Failed to get answer from AI');
+      logWithContext("error", "OpenAI completion error", { ...requestContext, status: completionResponse.status, response: errorText });
+      
+      if (completionResponse.status === 429) {
+        return createErrorResponse("RATE_LIMIT", "För många förfrågningar. Försök igen senare.", 429);
+      }
+      
+      return createErrorResponse("AI_ERROR", "Kunde inte få svar från AI", 500);
     }
 
     const completionData = await completionResponse.json();
     const answer = completionData.choices[0].message?.content || 'Inget svar kunde genereras.';
 
-    console.log('Successfully generated answer');
+    logWithContext("info", "Successfully generated answer", requestContext);
 
     return new Response(
       JSON.stringify({
@@ -147,12 +204,16 @@ Svara tydligt, på svenska, och hänvisa till relevanta lagrum (ange lagrumstext
     );
 
   } catch (error) {
-    console.error('Error in ask-legal-question:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Serverfel',
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    logWithContext("error", "Unhandled error in ask-legal-question", {
+      ...requestContext,
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    
+    return createErrorResponse(
+      "SERVER_ERROR",
+      error instanceof Error ? error.message : "Serverfel",
+      500
     );
   }
 });
