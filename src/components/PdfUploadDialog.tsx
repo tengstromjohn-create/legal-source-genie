@@ -12,9 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Upload } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { parseLegalPdf } from "@/lib/api";
 
 export const PdfUploadDialog = () => {
   const [open, setOpen] = useState(false);
@@ -41,36 +41,16 @@ export const PdfUploadDialog = () => {
     setUploading(true);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("regelverk_name", regelverkName);
-      formData.append("typ", typ);
-      if (referens) {
-        formData.append("referens", referens);
-      }
-
-      // Use fetch directly for FormData file uploads
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      
-      const response = await fetch(`${supabaseUrl}/functions/v1/parse-legal-pdf`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-        },
-        body: formData,
+      const result = await parseLegalPdf({
+        file,
+        regelverkName,
+        typ,
+        referens: referens || undefined,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to parse PDF');
-      }
-
-      const data = await response.json();
-
-      const message = data.inserted 
-        ? `Successfully imported ${data.inserted} legal source${data.inserted > 1 ? 's' : ''} from ${data.processedPages} pages${data.pages > 50 ? ` (document has ${data.pages} total pages)` : ''}`
-        : `Processing completed for ${data.processedPages} pages`;
+      const message = result.inserted 
+        ? `Successfully imported ${result.inserted} legal source${result.inserted > 1 ? 's' : ''} from ${result.processedPages} pages${result.pages > 50 ? ` (document has ${result.pages} total pages)` : ''}`
+        : `Processing completed for ${result.processedPages} pages`;
 
       toast({
         title: "Success",

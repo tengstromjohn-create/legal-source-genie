@@ -1,25 +1,18 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Send, FileText, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-interface Match {
-  id: string;
-  title: string;
-  lagrum: string;
-  similarity: number;
-  regelverk_name?: string;
-}
+import { askLegalQuestion } from "@/lib/api";
+import { LegalMatch } from "@/types/domain";
 
 const AskQuestion = () => {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
-  const [matches, setMatches] = useState<Match[]>([]);
+  const [matches, setMatches] = useState<LegalMatch[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -41,14 +34,10 @@ const AskQuestion = () => {
     setMatches([]);
 
     try {
-      const { data, error } = await supabase.functions.invoke('ask-legal-question', {
-        body: { question },
-      });
+      const result = await askLegalQuestion(question);
 
-      if (error) throw error;
-
-      setAnswer(data.answer);
-      setMatches(data.matches || []);
+      setAnswer(result.answer);
+      setMatches(result.matches);
 
       toast({
         title: "Svar genererat",

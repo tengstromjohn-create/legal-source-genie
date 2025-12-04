@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
+import { generateRequirementsForSource, generateEmbeddings as generateEmbeddingsApi } from "@/lib/api";
+import { GenerateRequirementsResult } from "@/types/domain";
 
 export type LegalSource = Tables<"legal_source">;
 
@@ -15,10 +17,7 @@ export interface CreateLegalSourceInput {
   referens?: string | null;
 }
 
-export interface GenerateRequirementsResult {
-  inserted: number;
-  requirements?: any[];
-}
+export type { GenerateRequirementsResult };
 
 export function useLegalSources() {
   const queryClient = useQueryClient();
@@ -68,34 +67,20 @@ export function useLegalSources() {
   });
 
   const generateRequirements = async (sourceId: string): Promise<GenerateRequirementsResult> => {
-    const { data, error } = await supabase.functions.invoke('generate-requirements', {
-      body: { legal_source_id: sourceId }
-    });
-
-    if (error) throw error;
+    const result = await generateRequirementsForSource(sourceId);
     
     queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
     queryClient.invalidateQueries({ queryKey: ["requirements"] });
     
-    return {
-      inserted: data?.inserted || 0,
-      requirements: data?.requirements,
-    };
+    return result;
   };
 
   const generateEmbeddings = async (limit: number = 50) => {
-    const { data, error } = await supabase.functions.invoke('generate-embeddings', {
-      body: { limit }
-    });
-
-    if (error) throw error;
-
+    const result = await generateEmbeddingsApi(limit);
+    
     queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
     
-    return {
-      updated: data?.updated || 0,
-      total: data?.total || 0,
-    };
+    return result;
   };
 
   return {
