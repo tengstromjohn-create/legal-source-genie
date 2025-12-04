@@ -14,13 +14,13 @@ serve(async (req) => {
   }
 
   try {
-    const { legal_source_id } = await req.json();
+    const { legal_source_id, workspace_id } = await req.json();
 
     if (!legal_source_id) {
       throw new Error("legal_source_id is required");
     }
 
-    console.log("Generating requirements for legal source:", legal_source_id);
+    console.log("Generating requirements for legal source:", legal_source_id, "workspace:", workspace_id);
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -164,6 +164,7 @@ ${textToAnalyze}
     if (krav.length > 0) {
       const requirementsToInsert = krav.map((k: any) => ({
         legal_source_id,
+        workspace_id: workspace_id || source.workspace_id || null,
         titel: k.titel,
         beskrivning: k.beskrivning,
         lagrum: k.paragraf || null,

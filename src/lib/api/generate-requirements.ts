@@ -5,12 +5,16 @@ import { GenerateRequirementsResult } from "@/types/domain";
  * Generate requirements from a legal source using AI
  */
 export async function generateRequirementsForSource(
-  sourceId: string
+  sourceId: string,
+  workspaceId?: string | null
 ): Promise<GenerateRequirementsResult> {
-  console.log(`[API] Generating requirements for source: ${sourceId}`);
+  console.log(`[API] Generating requirements for source: ${sourceId}, workspace: ${workspaceId}`);
   
   const { data, error } = await supabase.functions.invoke('generate-requirements', {
-    body: { legal_source_id: sourceId }
+    body: { 
+      legal_source_id: sourceId,
+      workspace_id: workspaceId 
+    }
   });
 
   if (error) {

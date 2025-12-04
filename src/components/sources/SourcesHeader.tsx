@@ -3,6 +3,7 @@ import { Plus, FileText, Loader2, Sparkles, LogOut, CheckSquare, Square } from "
 import { Button } from "@/components/ui/button";
 import { PdfUploadDialog } from "@/components/PdfUploadDialog";
 import { RiksdagenImportDialog } from "@/components/RiksdagenImportDialog";
+import { WorkspaceSelector } from "@/components/layout/WorkspaceSelector";
 
 interface SourcesHeaderProps {
   isAdmin: boolean;
@@ -35,9 +36,12 @@ export const SourcesHeader = ({
     <header className="border-b border-border bg-card">
       <div className="container mx-auto px-4 py-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Legal Sources</h1>
-            <p className="text-muted-foreground mt-1">Manage and analyze legal documents</p>
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Legal Sources</h1>
+              <p className="text-muted-foreground mt-1">Manage and analyze legal documents</p>
+            </div>
+            <WorkspaceSelector />
           </div>
           <div className="flex items-center gap-3">
             {isAdmin && sourcesCount > 0 && (

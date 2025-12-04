@@ -5,10 +5,10 @@ import { mapRequirementRowsToRequirements, mapUpdateRequirementInputToRow } from
 /**
  * Fetch all requirements with their legal source info
  */
-export async function fetchAllRequirements(): Promise<Requirement[]> {
-  console.log("[API] Fetching all requirements");
+export async function fetchAllRequirements(workspaceId?: string | null): Promise<Requirement[]> {
+  console.log("[API] Fetching all requirements for workspace:", workspaceId);
   
-  const { data, error } = await supabase
+  let query = supabase
     .from("requirement")
     .select(`
       *,
@@ -19,6 +19,13 @@ export async function fetchAllRequirements(): Promise<Requirement[]> {
       )
     `)
     .order("created_at", { ascending: false });
+
+  // Filter by workspace if provided
+  if (workspaceId) {
+    query = query.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("[API] Error fetching requirements:", error);
