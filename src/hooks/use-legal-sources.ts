@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { LegalSource, CreateLegalSourceInput, GenerateRequirementsResult } from "@/types/domain";
@@ -8,6 +8,14 @@ import { useActiveWorkspaceId } from "@/hooks/use-workspaces";
 import { logError, getUserFriendlyMessage } from "@/lib/error";
 
 export type { LegalSource, CreateLegalSourceInput, GenerateRequirementsResult };
+
+const PAGE_SIZE = 12;
+
+// Cache configuration
+const CACHE_CONFIG = {
+  staleTime: 5 * 60 * 1000, // 5 minutes
+  gcTime: 30 * 60 * 1000, // 30 minutes (formerly cacheTime)
+};
 
 export function useLegalSources() {
   const queryClient = useQueryClient();
@@ -22,7 +30,6 @@ export function useLegalSources() {
         .select("*")
         .order("created_at", { ascending: false });
       
-      // Filter by workspace if selected
       if (workspaceId) {
         query = query.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
       }
@@ -35,7 +42,7 @@ export function useLegalSources() {
       }
       return mapSourceRowsToLegalSources(data);
     },
-    enabled: true,
+    ...CACHE_CONFIG,
   });
 
   const createMutation = useMutation({
@@ -57,8 +64,12 @@ export function useLegalSources() {
       }
       return mapSourceRowToLegalSource(data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["legal_sources", workspaceId] });
+    onSuccess: (newSource) => {
+      // Optimistically update the cache instead of full refetch
+      queryClient.setQueryData<LegalSource[]>(
+        ["legal_sources", workspaceId],
+        (old) => old ? [newSource, ...old] : [newSource]
+      );
       toast({
         title: "Klart",
         description: "Rättskälla skapad",
@@ -78,8 +89,8 @@ export function useLegalSources() {
     try {
       const result = await generateRequirementsForSource(sourceId, workspaceId);
       
-      queryClient.invalidateQueries({ queryKey: ["legal_sources", workspaceId] });
-      queryClient.invalidateQueries({ queryKey: ["requirements", workspaceId] });
+      // Only invalidate requirements, not sources
+      queryClient.invalidateQueries({ queryKey: ["requirements"] });
       
       return result;
     } catch (error) {
@@ -113,6 +124,64 @@ export function useLegalSources() {
   };
 }
 
+// Paginated version for large lists
+export function useLegalSourcesPaginated() {
+  const { toast } = useToast();
+  const workspaceId = useActiveWorkspaceId();
+
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    error,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: ["legal_sources_paginated", workspaceId],
+    queryFn: async ({ pageParam = 0 }): Promise<{ sources: LegalSource[]; nextPage: number | null }> => {
+      let query = supabase
+        .from("legal_source")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(pageParam * PAGE_SIZE, (pageParam + 1) * PAGE_SIZE - 1);
+      
+      if (workspaceId) {
+        query = query.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        logError(error, { component: "useLegalSourcesPaginated", action: "fetch", workspaceId, page: pageParam });
+        throw error;
+      }
+
+      const sources = mapSourceRowsToLegalSources(data);
+      return {
+        sources,
+        nextPage: sources.length === PAGE_SIZE ? pageParam + 1 : null,
+      };
+    },
+    getNextPageParam: (lastPage) => lastPage.nextPage,
+    initialPageParam: 0,
+    ...CACHE_CONFIG,
+  });
+
+  // Flatten all pages into a single array
+  const sources = data?.pages.flatMap((page) => page.sources) ?? [];
+
+  return {
+    sources,
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    error,
+    reload: refetch,
+  };
+}
+
 export function useLegalSource(id: string | undefined) {
   const { data: source, isLoading, error } = useQuery({
     queryKey: ["legal_source", id],
@@ -130,6 +199,7 @@ export function useLegalSource(id: string | undefined) {
       return mapSourceRowToLegalSource(data);
     },
     enabled: !!id,
+    ...CACHE_CONFIG,
   });
 
   return {
