@@ -8,6 +8,7 @@ import {
   deleteRequirement as apiDeleteRequirement,
 } from "@/lib/api/requirements";
 import { useActiveWorkspaceId } from "@/hooks/use-workspaces";
+import { logError, getUserFriendlyMessage } from "@/lib/error";
 
 export type { Requirement, UpdateRequirementInput };
 
@@ -18,7 +19,14 @@ export function useRequirements() {
 
   const { data: requirements, isLoading, error, refetch } = useQuery({
     queryKey: ["requirements", workspaceId],
-    queryFn: () => fetchAllRequirements(workspaceId),
+    queryFn: async () => {
+      try {
+        return await fetchAllRequirements(workspaceId);
+      } catch (err) {
+        logError(err, { component: "useRequirements", action: "fetch", workspaceId });
+        throw err;
+      }
+    },
   });
 
   const deleteMutation = useMutation({
@@ -31,9 +39,10 @@ export function useRequirements() {
       });
     },
     onError: (error: Error) => {
+      logError(error, { component: "useRequirements", action: "delete", workspaceId });
       toast({
         title: "Fel",
-        description: error.message,
+        description: getUserFriendlyMessage(error),
         variant: "destructive",
       });
     },
@@ -50,9 +59,10 @@ export function useRequirements() {
       });
     },
     onError: (error: Error) => {
+      logError(error, { component: "useRequirements", action: "update", workspaceId });
       toast({
         title: "Fel",
-        description: error.message,
+        description: getUserFriendlyMessage(error),
         variant: "destructive",
       });
     },
@@ -77,7 +87,14 @@ export function useRequirementsBySource(sourceId: string | undefined) {
 
   const { data: requirements, isLoading, error, refetch } = useQuery({
     queryKey: ["requirements", sourceId],
-    queryFn: () => fetchRequirementsBySource(sourceId!),
+    queryFn: async () => {
+      try {
+        return await fetchRequirementsBySource(sourceId!);
+      } catch (err) {
+        logError(err, { component: "useRequirementsBySource", action: "fetch", sourceId });
+        throw err;
+      }
+    },
     enabled: !!sourceId,
   });
 
@@ -92,9 +109,10 @@ export function useRequirementsBySource(sourceId: string | undefined) {
       });
     },
     onError: (error: Error) => {
+      logError(error, { component: "useRequirementsBySource", action: "update", sourceId });
       toast({
         title: "Fel",
-        description: error.message,
+        description: getUserFriendlyMessage(error),
         variant: "destructive",
       });
     },

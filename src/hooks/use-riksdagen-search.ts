@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { logError, getUserFriendlyMessage } from "@/lib/error";
 
 export interface RiksdagenDocument {
   dok_id: string;
@@ -78,8 +79,10 @@ export function useRiksdagenSearch() {
         setResults([]);
         setTotalHits(0);
       }
-    } catch (err: any) {
-      setError(err.message || "Ett fel uppstod vid sökningen");
+    } catch (err) {
+      logError(err, { component: "useRiksdagenSearch", action: "search", query: params.query });
+      const userMessage = getUserFriendlyMessage(err);
+      setError(userMessage);
       setResults([]);
       setTotalHits(0);
     } finally {
