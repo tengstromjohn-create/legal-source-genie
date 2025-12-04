@@ -48,3 +48,17 @@ export interface ParsePdfInput {
   typ: string;
   referens?: string;
 }
+
+// Riksdagen document types
+export interface RiksdagenDocument {
+  dok_id: string;
+  titel: string;
+  undertitel?: string;
+  notisrubrik?: string;
+  publicerad: string;
+  doktyp: string;
+  rm: string;
+  beteckning: string;
+  dokument_url_html?: string;
+  dokument_url_text?: string;
+}

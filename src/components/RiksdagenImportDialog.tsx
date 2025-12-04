@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,35 +16,16 @@ import { Loader2, Download, Search, ExternalLink } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
-interface RiksdagenDocument {
-  dok_id: string;
-  titel: string;
-  undertitel?: string;
-  notisrubrik?: string;
-  publicerad: string;
-  doktyp: string;
-  rm: string;
-  beteckning: string;
-  dokument_url_html?: string;
-  dokument_url_text?: string;
-}
-
-interface SearchResult {
-  dokumentlista: {
-    dokument: RiksdagenDocument[];
-    "@traffar": string;
-  };
-}
+import { useRiksdagenSearch, RiksdagenDocument } from "@/hooks/use-riksdagen-search";
 
 export const RiksdagenImportDialog = () => {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [searching, setSearching] = useState(false);
   const [importing, setImporting] = useState<string | null>(null);
-  const [results, setResults] = useState<RiksdagenDocument[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  const { results, isLoading, error, search, reset, removeResult } = useRiksdagenSearch();
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,49 +39,19 @@ export const RiksdagenImportDialog = () => {
       return;
     }
 
-    setSearching(true);
-    setResults([]);
+    await search({ query: searchTerm });
+  };
 
-    try {
-      // Search for SFS (Svensk författningssamling) documents
-      const searchUrl = `https://data.riksdagen.se/dokumentlista/?sok=${encodeURIComponent(searchTerm)}&doktyp=sfs&utformat=json&sort=rel&sortorder=desc&p=1`;
-      
-      const response = await fetch(searchUrl);
-      
-      if (!response.ok) {
-        throw new Error("Failed to search Riksdagen");
-      }
-
-      const data: SearchResult = await response.json();
-      
-      if (data.dokumentlista?.dokument) {
-        const documents = Array.isArray(data.dokumentlista.dokument) 
-          ? data.dokumentlista.dokument 
-          : [data.dokumentlista.dokument];
-        
-        setResults(documents);
-        
-        toast({
-          title: "Sökning klar",
-          description: `Hittade ${documents.length} dokument`,
-        });
-      } else {
-        setResults([]);
-        toast({
-          title: "Inga resultat",
-          description: "Inga dokument hittades för din sökning",
-        });
-      }
-    } catch (error: any) {
+  // Show toast when error occurs
+  useEffect(() => {
+    if (error) {
       toast({
         title: "Sökfel",
-        description: error.message || "Kunde inte söka i Riksdagens API",
+        description: error,
         variant: "destructive",
       });
-    } finally {
-      setSearching(false);
     }
-  };
+  }, [error, toast]);
 
   const handleImport = async (doc: RiksdagenDocument) => {
     setImporting(doc.dok_id);
@@ -134,8 +85,8 @@ export const RiksdagenImportDialog = () => {
       // Create the legal source
       const { error } = await supabase.from("legal_source").insert({
         title: doc.beteckning || doc.titel,
-        content: content.substring(0, 5000), // Store first 5000 chars in content field
-        full_text: content, // Store full text in full_text field
+        content: content.substring(0, 5000),
+        full_text: content,
         regelverk_name: "SFS",
         lagrum: doc.beteckning,
         typ: "lag",
@@ -150,9 +101,7 @@ export const RiksdagenImportDialog = () => {
       });
 
       queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
-      
-      // Remove imported document from results
-      setResults(prev => prev.filter(d => d.dok_id !== doc.dok_id));
+      removeResult(doc.dok_id);
       
     } catch (error: any) {
       toast({
@@ -165,16 +114,16 @@ export const RiksdagenImportDialog = () => {
     }
   };
 
-  const resetForm = () => {
-    setSearchTerm("");
-    setResults([]);
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (!newOpen) {
+      setSearchTerm("");
+      reset();
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={(newOpen) => {
-      setOpen(newOpen);
-      if (!newOpen) resetForm();
-    }}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" className="gap-2">
           <Download className="h-4 w-4" />
@@ -198,12 +147,12 @@ export const RiksdagenImportDialog = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="t.ex. aktiebolagslag, dataskydd, GDPR..."
-                disabled={searching}
+                disabled={isLoading}
               />
             </div>
             <div className="flex items-end">
-              <Button type="submit" disabled={searching || !searchTerm.trim()}>
-                {searching ? (
+              <Button type="submit" disabled={isLoading || !searchTerm.trim()}>
+                {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Söker...
@@ -281,7 +230,7 @@ export const RiksdagenImportDialog = () => {
           </ScrollArea>
         )}
 
-        {!searching && results.length === 0 && searchTerm && (
+        {!isLoading && results.length === 0 && searchTerm && (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Search className="h-12 w-12 text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground">
