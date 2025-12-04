@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { PdfUploadDialog } from "@/components/PdfUploadDialog";
 import { RiksdagenImportDialog } from "@/components/RiksdagenImportDialog";
 import { GenerationProgressDialog, SourceProgress } from "@/components/GenerationProgressDialog";
+import { useLegalSources } from "@/hooks/use-legal-sources";
 
 const Sources = () => {
   const [title, setTitle] = useState("");
@@ -28,57 +27,19 @@ const Sources = () => {
   const [isGeneratingEmbeddings, setIsGeneratingEmbeddings] = useState(false);
   const [progressSources, setProgressSources] = useState<SourceProgress[]>([]);
   const [progressIndex, setProgressIndex] = useState(0);
+  
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { isAdmin, signOut } = useAuth();
-
-  const { data: sources, isLoading } = useQuery({
-    queryKey: ["legal_sources"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("legal_source")
-        .select("*")
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const createMutation = useMutation({
-    mutationFn: async (newSource: any) => {
-      const { data, error } = await supabase
-        .from("legal_source")
-        .insert([newSource])
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
-      toast({
-        title: "Success",
-        description: "Legal source created successfully",
-      });
-    setTitle("");
-    setContent("");
-    setRegelverkName("");
-    setLagrum("");
-    setTyp("");
-    setReferens("");
-    setIsFormOpen(false);
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  
+  const { 
+    sources, 
+    isLoading, 
+    createSource, 
+    isCreating,
+    generateRequirements,
+    generateEmbeddings,
+  } = useLegalSources();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,14 +51,23 @@ const Sources = () => {
       });
       return;
     }
-    createMutation.mutate({
+    createSource({
       title,
       content,
-      full_text: content,
       regelverk_name: regelverkName || null,
       lagrum: lagrum || null,
       typ: typ || null,
       referens: referens || null,
+    }, {
+      onSuccess: () => {
+        setTitle("");
+        setContent("");
+        setRegelverkName("");
+        setLagrum("");
+        setTyp("");
+        setReferens("");
+        setIsFormOpen(false);
+      }
     });
   };
 
@@ -105,7 +75,6 @@ const Sources = () => {
     const source = sources?.find(s => s.id === sourceId);
     if (!source) return;
     
-    // Initialize progress for single source
     setProgressSources([{
       id: source.id,
       title: source.title,
@@ -115,35 +84,24 @@ const Sources = () => {
     setGeneratingId(sourceId);
     
     try {
-      const { data, error } = await supabase.functions.invoke('generate-requirements', {
-        body: { legal_source_id: sourceId }
-      });
-
-      if (error) throw error;
-
-      const inserted = data?.inserted || 0;
+      const result = await generateRequirements(sourceId);
       
-      // Update to completed
       setProgressSources([{
         id: source.id,
         title: source.title,
         status: "completed",
-        requirementsCount: inserted,
+        requirementsCount: result.inserted,
       }]);
       setProgressIndex(1);
       
-      // Wait a bit before closing
       setTimeout(() => {
         toast({
           title: "Krav skapade",
-          description: `${inserted} krav har extraherats från dokumentet`,
+          description: `${result.inserted} krav har extraherats från dokumentet`,
         });
-        
         setProgressSources([]);
-        queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
       }, 1500);
     } catch (error: any) {
-      // Update to failed
       setProgressSources([{
         id: source.id,
         title: source.title,
@@ -175,7 +133,6 @@ const Sources = () => {
       return;
     }
 
-    // Initialize progress tracking
     const sourcesToProcess = sources?.filter(s => selectedSources.has(s.id)) || [];
     const initialProgress: SourceProgress[] = sourcesToProcess.map(s => ({
       id: s.id,
@@ -194,32 +151,23 @@ const Sources = () => {
     for (let i = 0; i < sourceArray.length; i++) {
       const sourceId = sourceArray[i];
       
-      // Update to processing
       setProgressSources(prev => prev.map(s => 
         s.id === sourceId ? { ...s, status: "processing" as const } : s
       ));
       
       try {
-        const { data, error } = await supabase.functions.invoke('generate-requirements', {
-          body: { legal_source_id: sourceId }
-        });
-
-        if (error) throw error;
-
-        const inserted = data?.inserted || 0;
-        totalInserted += inserted;
+        const result = await generateRequirements(sourceId);
+        totalInserted += result.inserted;
         successCount++;
         
-        // Update to completed
         setProgressSources(prev => prev.map(s => 
           s.id === sourceId 
-            ? { ...s, status: "completed" as const, requirementsCount: inserted }
+            ? { ...s, status: "completed" as const, requirementsCount: result.inserted }
             : s
         ));
       } catch (error: any) {
         console.error(`Failed to generate for ${sourceId}:`, error);
         
-        // Update to failed
         setProgressSources(prev => prev.map(s => 
           s.id === sourceId 
             ? { ...s, status: "failed" as const, error: error.message || "Okänt fel" }
@@ -230,13 +178,11 @@ const Sources = () => {
       setProgressIndex(i + 1);
     }
 
-    // Wait a bit before closing so user can see final state
     setTimeout(() => {
       setIsBatchGenerating(false);
       setSelectedSources(new Set());
       setProgressSources([]);
       setProgressIndex(0);
-      queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
 
       toast({
         title: "Batch-generering klar",
@@ -269,21 +215,12 @@ const Sources = () => {
     setIsGeneratingEmbeddings(true);
     
     try {
-      const { data, error } = await supabase.functions.invoke('generate-embeddings', {
-        body: { limit: 50 }
-      });
-
-      if (error) throw error;
-
-      const updated = data?.updated || 0;
-      const total = data?.total || 0;
+      const result = await generateEmbeddings(50);
       
       toast({
         title: "Embeddings skapade",
-        description: `${updated} av ${total} källor har fått embeddings`,
+        description: `${result.updated} av ${result.total} källor har fått embeddings`,
       });
-      
-      queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
     } catch (error: any) {
       toast({
         title: "Fel",
@@ -471,8 +408,8 @@ const Sources = () => {
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button type="submit" disabled={createMutation.isPending}>
-                    {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Button type="submit" disabled={isCreating}>
+                    {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Create Source
                   </Button>
                   <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
@@ -568,7 +505,7 @@ const Sources = () => {
       </main>
 
       <GenerationProgressDialog
-        open={isBatchGenerating}
+        open={isBatchGenerating || progressSources.length > 0}
         sources={progressSources}
         currentIndex={progressIndex}
       />
