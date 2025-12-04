@@ -1,6 +1,4 @@
 import { useParams, Link } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useLegalSource, useLegalSources } from "@/hooks/use-legal-sources";
+import { useRequirementsBySource } from "@/hooks/use-requirements";
 
 interface EditableRequirement {
   id: string;
@@ -24,58 +24,33 @@ interface EditableRequirement {
 const SourceDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [isGenerating, setIsGenerating] = useState(false);
   const { isAdmin } = useAuth();
   const [editedRequirements, setEditedRequirements] = useState<Record<string, EditableRequirement>>({});
 
-  const { data: source, isLoading: sourceLoading } = useQuery({
-    queryKey: ["legal_source", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("legal_source")
-        .select("*")
-        .eq("id", id)
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
+  const { source, isLoading: sourceLoading } = useLegalSource(id);
+  const { generateRequirements } = useLegalSources();
+  const { 
+    requirements, 
+    isLoading: requirementsLoading, 
+    updateRequirement,
+    isUpdating,
+    reload: reloadRequirements,
+  } = useRequirementsBySource(id);
 
-  const { data: requirements, isLoading: requirementsLoading } = useQuery({
-    queryKey: ["requirements", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("requirement")
-        .select("*")
-        .eq("legal_source_id", id)
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
-
-  const generateRequirements = async () => {
+  const handleGenerateRequirements = async () => {
     if (!id) return;
     
     setIsGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-requirements", {
-        body: { legal_source_id: id },
-      });
-
-      if (error) throw error;
+      const result = await generateRequirements(id);
 
       toast({
         title: "Success",
-        description: `Generated ${data.count} requirements`,
+        description: `Generated ${result.inserted} requirements`,
       });
       
-      queryClient.invalidateQueries({ queryKey: ["requirements", id] });
+      reloadRequirements();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -86,36 +61,6 @@ const SourceDetail = () => {
       setIsGenerating(false);
     }
   };
-
-  const updateRequirement = useMutation({
-    mutationFn: async ({ requirementId, updates }: { requirementId: string; updates: Partial<EditableRequirement> }) => {
-      const { error } = await supabase
-        .from("requirement")
-        .update(updates)
-        .eq("id", requirementId);
-      
-      if (error) throw error;
-    },
-    onSuccess: (_, { requirementId }) => {
-      toast({
-        title: "Success",
-        description: "Requirement updated successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["requirements", id] });
-      setEditedRequirements((prev) => {
-        const updated = { ...prev };
-        delete updated[requirementId];
-        return updated;
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update requirement",
-        variant: "destructive",
-      });
-    },
-  });
 
   const handleFieldChange = (requirementId: string, field: keyof EditableRequirement, value: string) => {
     setEditedRequirements((prev) => ({
@@ -131,7 +76,13 @@ const SourceDetail = () => {
   const handleSave = (requirementId: string) => {
     const updates = editedRequirements[requirementId];
     if (updates) {
-      updateRequirement.mutate({ requirementId, updates });
+      const { id: _, ...updateData } = updates;
+      updateRequirement(requirementId, updateData);
+      setEditedRequirements((prev) => {
+        const updated = { ...prev };
+        delete updated[requirementId];
+        return updated;
+      });
     }
   };
 
@@ -217,7 +168,7 @@ const SourceDetail = () => {
               </div>
               {isAdmin && (
                 <Button 
-                  onClick={generateRequirements}
+                  onClick={handleGenerateRequirements}
                   disabled={isGenerating}
                   className="gap-2"
                 >
@@ -305,11 +256,11 @@ const SourceDetail = () => {
                               <Button
                                 size="sm"
                                 onClick={() => handleSave(req.id)}
-                                disabled={!hasChanges || updateRequirement.isPending}
+                                disabled={!hasChanges || isUpdating}
                                 variant={hasChanges ? "default" : "ghost"}
                                 className="gap-2"
                               >
-                                {updateRequirement.isPending ? (
+                                {isUpdating ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
                                   <Save className="h-4 w-4" />

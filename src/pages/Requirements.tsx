@@ -1,10 +1,7 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
 import { Edit, Trash2, Search, FileText, ArrowLeft, Loader2, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,83 +16,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-interface Requirement {
-  id: string;
-  titel: string | null;
-  title: string;
-  beskrivning: string | null;
-  description: string | null;
-  lagrum: string | null;
-  subjekt: any;
-  trigger: any;
-  undantag: any;
-  obligation: string | null;
-  åtgärder: any;
-  risknivå: string | null;
-  legal_source_id: string;
-  created_at: string;
-  legal_source?: {
-    title: string;
-    regelverk_name: string;
-    lagrum: string;
-  };
-}
+import { useRequirements, Requirement } from "@/hooks/use-requirements";
 
 const Requirements = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRequirement, setSelectedRequirement] = useState<Requirement | null>(null);
   const [deleteRequirementId, setDeleteRequirementId] = useState<string | null>(null);
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
 
-  const { data: requirements, isLoading } = useQuery({
-    queryKey: ["requirements"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("requirement")
-        .select(`
-          *,
-          legal_source:legal_source_id (
-            title,
-            regelverk_name,
-            lagrum
-          )
-        `)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return data as unknown as Requirement[];
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("requirement")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["requirements"] });
-      toast({
-        title: "Borttaget",
-        description: "Kravet har tagits bort",
-      });
-      setDeleteRequirementId(null);
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Fel",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  const { 
+    requirements, 
+    isLoading, 
+    deleteRequirement, 
+    isDeleting,
+    reload,
+  } = useRequirements();
 
   const filteredRequirements = requirements?.filter((req) => {
     const searchLower = searchTerm.toLowerCase();
@@ -109,6 +45,14 @@ const Requirements = () => {
       req.legal_source?.lagrum?.toLowerCase().includes(searchLower))
     );
   });
+
+  const handleDelete = () => {
+    if (deleteRequirementId) {
+      deleteRequirement(deleteRequirementId, {
+        onSuccess: () => setDeleteRequirementId(null),
+      });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -306,7 +250,7 @@ const Requirements = () => {
           requirement={selectedRequirement}
           open={!!selectedRequirement}
           onOpenChange={(open) => !open && setSelectedRequirement(null)}
-          onSuccess={() => queryClient.invalidateQueries({ queryKey: ["requirements"] })}
+          onSuccess={() => reload()}
         />
       )}
 
@@ -321,9 +265,10 @@ const Requirements = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>Avbryt</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteRequirementId && deleteMutation.mutate(deleteRequirementId)}
+              onClick={handleDelete}
+              disabled={isDeleting}
             >
-              Ta bort
+              {isDeleting ? "Tar bort..." : "Ta bort"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
