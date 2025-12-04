@@ -1,3 +1,4 @@
+import React, { memo } from "react";
 import { Link } from "react-router-dom";
 import { FileText, Sparkles, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +16,7 @@ interface SourceCardProps {
   onGenerateRequirements: (sourceId: string) => void;
 }
 
-export const SourceCard = ({
+const SourceCardComponent = ({
   source,
   isAdmin,
   isSelected,
@@ -46,7 +47,7 @@ export const SourceCard = ({
               </CardTitle>
             </Link>
             <CardDescription className="mt-1">
-              {source.createdAt.toLocaleDateString()}
+              {source.createdAt.toLocaleDateString("sv-SE")}
             </CardDescription>
           </div>
         </div>
@@ -80,3 +81,14 @@ export const SourceCard = ({
     </Card>
   );
 };
+
+// Memoize to prevent unnecessary re-renders in large lists
+export const SourceCard = memo(SourceCardComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.source.id === nextProps.source.id &&
+    prevProps.isAdmin === nextProps.isAdmin &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.isGenerating === nextProps.isGenerating &&
+    prevProps.isBatchGenerating === nextProps.isBatchGenerating
+  );
+});

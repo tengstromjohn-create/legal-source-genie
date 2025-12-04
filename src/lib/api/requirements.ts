@@ -1,13 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Requirement, UpdateRequirementInput } from "@/types/domain";
-import { mapRequirementRowsToRequirements, mapUpdateRequirementInputToRow } from "@/lib/domain";
+import { mapRequirementRowsToRequirements, mapRequirementRowToRequirement, mapUpdateRequirementInputToRow } from "@/lib/domain";
 
 /**
  * Fetch all requirements with their legal source info
  */
 export async function fetchAllRequirements(workspaceId?: string | null): Promise<Requirement[]> {
-  console.log("[API] Fetching all requirements for workspace:", workspaceId);
-  
   let query = supabase
     .from("requirement")
     .select(`
@@ -20,7 +18,6 @@ export async function fetchAllRequirements(workspaceId?: string | null): Promise
     `)
     .order("created_at", { ascending: false });
 
-  // Filter by workspace if provided
   if (workspaceId) {
     query = query.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
   }
@@ -28,11 +25,43 @@ export async function fetchAllRequirements(workspaceId?: string | null): Promise
   const { data, error } = await query;
 
   if (error) {
-    console.error("[API] Error fetching requirements:", error);
     throw new Error(error.message);
   }
 
-  console.log("[API] Fetched", data?.length || 0, "requirements");
+  return mapRequirementRowsToRequirements(data as any);
+}
+
+/**
+ * Fetch requirements with pagination
+ */
+export async function fetchRequirementsPaginated(
+  workspaceId: string | null | undefined,
+  page: number,
+  pageSize: number
+): Promise<Requirement[]> {
+  let query = supabase
+    .from("requirement")
+    .select(`
+      *,
+      legal_source:legal_source_id (
+        title,
+        regelverk_name,
+        lagrum
+      )
+    `)
+    .order("created_at", { ascending: false })
+    .range(page * pageSize, (page + 1) * pageSize - 1);
+
+  if (workspaceId) {
+    query = query.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
   return mapRequirementRowsToRequirements(data as any);
 }
 
@@ -40,8 +69,6 @@ export async function fetchAllRequirements(workspaceId?: string | null): Promise
  * Fetch requirements for a specific legal source
  */
 export async function fetchRequirementsBySource(sourceId: string): Promise<Requirement[]> {
-  console.log("[API] Fetching requirements for source:", sourceId);
-  
   const { data, error } = await supabase
     .from("requirement")
     .select("*")
@@ -49,50 +76,42 @@ export async function fetchRequirementsBySource(sourceId: string): Promise<Requi
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("[API] Error fetching requirements by source:", error);
     throw new Error(error.message);
   }
 
-  console.log("[API] Fetched", data?.length || 0, "requirements for source");
   return mapRequirementRowsToRequirements(data as any);
 }
 
 /**
- * Update a requirement
+ * Update a requirement and return the updated requirement
  */
-export async function updateRequirement(id: string, updates: UpdateRequirementInput): Promise<void> {
-  console.log("[API] Updating requirement:", id, updates);
-  
+export async function updateRequirement(id: string, updates: UpdateRequirementInput): Promise<Requirement> {
   const rowUpdates = mapUpdateRequirementInputToRow(updates);
   
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("requirement")
     .update(rowUpdates)
-    .eq("id", id);
+    .eq("id", id)
+    .select()
+    .single();
 
   if (error) {
-    console.error("[API] Error updating requirement:", error);
     throw new Error(error.message);
   }
 
-  console.log("[API] Requirement updated successfully");
+  return mapRequirementRowToRequirement(data as any);
 }
 
 /**
  * Delete a requirement
  */
 export async function deleteRequirement(id: string): Promise<void> {
-  console.log("[API] Deleting requirement:", id);
-  
   const { error } = await supabase
     .from("requirement")
     .delete()
     .eq("id", id);
 
   if (error) {
-    console.error("[API] Error deleting requirement:", error);
     throw new Error(error.message);
   }
-
-  console.log("[API] Requirement deleted successfully");
 }

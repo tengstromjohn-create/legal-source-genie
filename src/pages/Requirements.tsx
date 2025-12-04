@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Edit, Trash2, Search, FileText, ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Search, FileText, ArrowLeft, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { RequirementEditDialog } from "@/components/RequirementEditDialog";
+import { RequirementCard } from "@/components/requirements/RequirementCard";
+import { RequirementsListSkeleton } from "@/components/ui/skeletons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,10 +20,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useRequirements, type Requirement } from "@/hooks/use-requirements";
 
+const PAGE_SIZE = 20;
+
 const Requirements = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRequirement, setSelectedRequirement] = useState<Requirement | null>(null);
   const [deleteRequirementId, setDeleteRequirementId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
 
@@ -34,33 +39,73 @@ const Requirements = () => {
     isUpdating,
   } = useRequirements();
 
-  const filteredRequirements = requirements?.filter((req) => {
+  // Memoize filtered requirements
+  const filteredRequirements = useMemo(() => {
+    if (!requirements) return [];
+    if (!searchTerm) return requirements;
+    
     const searchLower = searchTerm.toLowerCase();
-    return (
+    return requirements.filter((req) => (
       req.titel?.toLowerCase().includes(searchLower) ||
       req.beskrivning?.toLowerCase().includes(searchLower) ||
       req.legalSource?.title?.toLowerCase().includes(searchLower) ||
       req.legalSource?.lagrum?.toLowerCase().includes(searchLower)
-    );
-  });
+    ));
+  }, [requirements, searchTerm]);
 
-  const handleDelete = () => {
+  // Paginate locally
+  const visibleRequirements = useMemo(() => {
+    return filteredRequirements.slice(0, visibleCount);
+  }, [filteredRequirements, visibleCount]);
+
+  const hasMore = visibleCount < filteredRequirements.length;
+
+  const handleLoadMore = useCallback(() => {
+    setVisibleCount((prev) => prev + PAGE_SIZE);
+  }, []);
+
+  const handleDelete = useCallback(() => {
     if (deleteRequirementId) {
       deleteRequirement(deleteRequirementId, {
         onSuccess: () => setDeleteRequirementId(null),
       });
     }
-  };
+  }, [deleteRequirementId, deleteRequirement]);
 
-  const handleSaveRequirement = async (id: string, updates: Parameters<typeof updateRequirement>[1]) => {
+  const handleSaveRequirement = useCallback(async (id: string, updates: Parameters<typeof updateRequirement>[1]) => {
     await updateRequirement(id, updates);
     setSelectedRequirement(null);
-  };
+  }, [updateRequirement]);
+
+  const handleEdit = useCallback((req: Requirement) => {
+    setSelectedRequirement(req);
+  }, []);
+
+  const handleRequestDelete = useCallback((id: string) => {
+    setDeleteRequirementId(id);
+  }, []);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-background">
+        <header className="border-b border-border bg-card">
+          <div className="container mx-auto px-4 py-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Button variant="ghost" size="icon" onClick={() => navigate("/sources")}>
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <div>
+                  <h1 className="text-3xl font-bold text-foreground">Krav</h1>
+                  <p className="text-muted-foreground mt-1">Granska och redigera genererade krav</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+        <main className="container mx-auto px-4 py-8">
+          <RequirementsListSkeleton count={5} />
+        </main>
       </div>
     );
   }
@@ -71,18 +116,12 @@ const Requirements = () => {
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate("/sources")}
-              >
+              <Button variant="ghost" size="icon" onClick={() => navigate("/sources")}>
                 <ArrowLeft className="h-5 w-5" />
               </Button>
               <div>
                 <h1 className="text-3xl font-bold text-foreground">Krav</h1>
-                <p className="text-muted-foreground mt-1">
-                  Granska och redigera genererade krav
-                </p>
+                <p className="text-muted-foreground mt-1">Granska och redigera genererade krav</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -91,7 +130,7 @@ const Requirements = () => {
                 Ställ fråga
               </Button>
               <span className="text-sm text-muted-foreground">
-                {filteredRequirements?.length || 0} krav
+                {filteredRequirements.length} krav
               </span>
             </div>
           </div>
@@ -105,13 +144,16 @@ const Requirements = () => {
             <Input
               placeholder="Sök efter titel, beskrivning eller lagrum..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setVisibleCount(PAGE_SIZE); // Reset pagination on search
+              }}
               className="pl-10"
             />
           </div>
         </div>
 
-        {filteredRequirements && filteredRequirements.length === 0 && (
+        {filteredRequirements.length === 0 && (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <FileText className="h-12 w-12 text-muted-foreground mb-4" />
@@ -121,11 +163,7 @@ const Requirements = () => {
                   : "Inga krav har genererats än"}
               </p>
               {!searchTerm && (
-                <Button
-                  variant="outline"
-                  className="mt-4"
-                  onClick={() => navigate("/sources")}
-                >
+                <Button variant="outline" className="mt-4" onClick={() => navigate("/sources")}>
                   Gå till Källor
                 </Button>
               )}
@@ -134,118 +172,24 @@ const Requirements = () => {
         )}
 
         <div className="grid gap-4">
-          {filteredRequirements?.map((req) => (
-            <Card key={req.id} className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-xl">
-                      {req.titel}
-                    </CardTitle>
-                    <CardDescription className="mt-2 space-y-1">
-                      <div>
-                        <span className="font-semibold">Källa:</span>{" "}
-                        {req.legalSource?.regelverkName || req.legalSource?.title}
-                      </div>
-                      {req.legalSource?.lagrum && (
-                        <div>
-                          <span className="font-semibold">Paragraf:</span>{" "}
-                          {req.legalSource.lagrum}
-                        </div>
-                      )}
-                    </CardDescription>
-                  </div>
-                  {isAdmin && (
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setSelectedRequirement(req)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setDeleteRequirementId(req.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">
-                      Beskrivning:
-                    </p>
-                    <p className="text-sm">
-                      {req.beskrivning || "-"}
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    {req.subjekt && req.subjekt.length > 0 && (
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-1">Subjekt:</p>
-                        <p className="text-sm">{req.subjekt.join(", ")}</p>
-                      </div>
-                    )}
-
-                    {req.obligation && (
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-1">
-                          Obligation:
-                        </p>
-                        <p className="text-sm">{req.obligation}</p>
-                      </div>
-                    )}
-
-                    {req.risknivå && (
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-1">Risknivå:</p>
-                        <span
-                          className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                            req.risknivå === "hög"
-                              ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                              : req.risknivå === "medel"
-                              ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                              : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                          }`}
-                        >
-                          {req.risknivå}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {req.triggers && req.triggers.length > 0 && (
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">Trigger:</p>
-                      <p className="text-sm">{req.triggers.join(", ")}</p>
-                    </div>
-                  )}
-
-                  {req.åtgärder && req.åtgärder.length > 0 && (
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">Åtgärder:</p>
-                      <p className="text-sm">{req.åtgärder.join(", ")}</p>
-                    </div>
-                  )}
-
-                  {req.undantag && req.undantag.length > 0 && (
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">Undantag:</p>
-                      <p className="text-sm">{req.undantag.join(", ")}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+          {visibleRequirements.map((req) => (
+            <RequirementCard
+              key={req.id}
+              requirement={req}
+              isAdmin={isAdmin}
+              onEdit={handleEdit}
+              onDelete={handleRequestDelete}
+            />
           ))}
         </div>
+
+        {hasMore && (
+          <div className="flex justify-center mt-6">
+            <Button variant="outline" onClick={handleLoadMore}>
+              Visa fler ({filteredRequirements.length - visibleCount} kvar)
+            </Button>
+          </div>
+        )}
       </main>
 
       {selectedRequirement && (
@@ -268,10 +212,7 @@ const Requirements = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Avbryt</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={isDeleting}
-            >
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
               {isDeleting ? "Tar bort..." : "Ta bort"}
             </AlertDialogAction>
           </AlertDialogFooter>
