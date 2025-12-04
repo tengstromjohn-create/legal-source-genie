@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Send, FileText, ArrowLeft, Sparkles } from "lucide-react";
+import { Loader2, Send, FileText, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Match {

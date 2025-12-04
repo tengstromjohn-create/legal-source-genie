@@ -1,12 +1,12 @@
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Sparkles, Loader2, CheckCircle2, Save } from "lucide-react";
-import { useState, useEffect } from "react";
+import { ArrowLeft, Sparkles, Loader2, Save } from "lucide-react";
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,16 +25,9 @@ const SourceDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const [isGenerating, setIsGenerating] = useState(false);
-  const { user, loading: authLoading, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const [editedRequirements, setEditedRequirements] = useState<Record<string, EditableRequirement>>({});
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/auth");
-    }
-  }, [user, authLoading, navigate]);
 
   const { data: source, isLoading: sourceLoading } = useQuery({
     queryKey: ["legal_source", id],
@@ -142,16 +135,12 @@ const SourceDetail = () => {
     }
   };
 
-  if (authLoading || sourceLoading) {
+  if (sourceLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
-  }
-
-  if (!user) {
-    return null;
   }
 
   if (!source) {
