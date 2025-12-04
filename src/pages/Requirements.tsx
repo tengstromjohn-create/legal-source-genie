@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -49,13 +49,7 @@ const Requirements = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { user, loading: authLoading, isAdmin } = useAuth();
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/auth");
-    }
-  }, [user, authLoading, navigate]);
+  const { isAdmin } = useAuth();
 
   const { data: requirements, isLoading } = useQuery({
     queryKey: ["requirements"],
@@ -116,16 +110,12 @@ const Requirements = () => {
     );
   });
 
-  if (authLoading || isLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
-  }
-
-  if (!user) {
-    return null;
   }
 
   return (
