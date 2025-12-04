@@ -7,22 +7,24 @@ import {
   updateRequirement as apiUpdateRequirement,
   deleteRequirement as apiDeleteRequirement,
 } from "@/lib/api/requirements";
+import { useActiveWorkspaceId } from "@/hooks/use-workspaces";
 
 export type { Requirement, UpdateRequirementInput };
 
 export function useRequirements() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const workspaceId = useActiveWorkspaceId();
 
   const { data: requirements, isLoading, error, refetch } = useQuery({
-    queryKey: ["requirements"],
-    queryFn: fetchAllRequirements,
+    queryKey: ["requirements", workspaceId],
+    queryFn: () => fetchAllRequirements(workspaceId),
   });
 
   const deleteMutation = useMutation({
     mutationFn: apiDeleteRequirement,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["requirements"] });
+      queryClient.invalidateQueries({ queryKey: ["requirements", workspaceId] });
       toast({
         title: "Borttaget",
         description: "Kravet har tagits bort",
@@ -41,7 +43,7 @@ export function useRequirements() {
     mutationFn: ({ id, updates }: { id: string; updates: UpdateRequirementInput }) =>
       apiUpdateRequirement(id, updates),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["requirements"] });
+      queryClient.invalidateQueries({ queryKey: ["requirements", workspaceId] });
       toast({
         title: "Sparat",
         description: "Kravet har uppdaterats",
