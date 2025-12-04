@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,20 +10,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import type { RequirementUpdate } from "@/lib/api/requirements";
 
 interface Requirement {
   id: string;
   titel: string | null;
   beskrivning: string | null;
-  lagrum: string | null;
-  subjekt: any;
-  trigger: any;
-  undantag: any;
+  subjekt: string[] | null;
+  trigger: string[] | null;
+  undantag: string[] | null;
   obligation: string | null;
-  åtgärder: any;
+  åtgärder: string[] | null;
   risknivå: string | null;
 }
 
@@ -31,71 +29,51 @@ interface RequirementEditDialogProps {
   requirement: Requirement;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  onSave: (id: string, updates: RequirementUpdate) => Promise<void>;
+  isSaving?: boolean;
 }
 
 export const RequirementEditDialog = ({
   requirement,
   open,
   onOpenChange,
-  onSuccess,
+  onSave,
+  isSaving = false,
 }: RequirementEditDialogProps) => {
-  const [titel, setTitel] = useState(requirement.titel || "");
-  const [beskrivning, setBeskrivning] = useState(requirement.beskrivning || "");
-  const [lagrum, setLagrum] = useState(requirement.lagrum || "");
-  const [subjekt, setSubjekt] = useState(
-    Array.isArray(requirement.subjekt) ? requirement.subjekt.join(", ") : ""
-  );
-  const [trigger, setTrigger] = useState(
-    Array.isArray(requirement.trigger) ? requirement.trigger.join(", ") : ""
-  );
-  const [undantag, setUndantag] = useState(
-    Array.isArray(requirement.undantag) ? requirement.undantag.join(", ") : ""
-  );
-  const [obligation, setObligation] = useState(requirement.obligation || "");
-  const [åtgärder, setÅtgärder] = useState(
-    Array.isArray(requirement.åtgärder) ? requirement.åtgärder.join(", ") : ""
-  );
-  const [risknivå, setRisknivå] = useState(requirement.risknivå || "");
-  const [saving, setSaving] = useState(false);
-  const { toast } = useToast();
+  const [titel, setTitel] = useState("");
+  const [beskrivning, setBeskrivning] = useState("");
+  const [subjekt, setSubjekt] = useState("");
+  const [trigger, setTrigger] = useState("");
+  const [undantag, setUndantag] = useState("");
+  const [obligation, setObligation] = useState("");
+  const [åtgärder, setÅtgärder] = useState("");
+  const [risknivå, setRisknivå] = useState("");
+
+  useEffect(() => {
+    setTitel(requirement.titel || "");
+    setBeskrivning(requirement.beskrivning || "");
+    setSubjekt(Array.isArray(requirement.subjekt) ? requirement.subjekt.join(", ") : "");
+    setTrigger(Array.isArray(requirement.trigger) ? requirement.trigger.join(", ") : "");
+    setUndantag(Array.isArray(requirement.undantag) ? requirement.undantag.join(", ") : "");
+    setObligation(requirement.obligation || "");
+    setÅtgärder(Array.isArray(requirement.åtgärder) ? requirement.åtgärder.join(", ") : "");
+    setRisknivå(requirement.risknivå || "");
+  }, [requirement]);
 
   const handleSave = async () => {
-    setSaving(true);
-    try {
-      const { error } = await supabase
-        .from("requirement")
-        .update({
-          titel,
-          beskrivning,
-          lagrum,
-          subjekt: subjekt.split(",").map((s) => s.trim()).filter(Boolean),
-          trigger: trigger.split(",").map((t) => t.trim()).filter(Boolean),
-          undantag: undantag.split(",").map((u) => u.trim()).filter(Boolean),
-          obligation,
-          åtgärder: åtgärder.split(",").map((a) => a.trim()).filter(Boolean),
-          risknivå,
-        })
-        .eq("id", requirement.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Sparat",
-        description: "Kravet har uppdaterats",
-      });
-
-      onSuccess();
-      onOpenChange(false);
-    } catch (error: any) {
-      toast({
-        title: "Fel",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
+    const updates: RequirementUpdate = {
+      titel,
+      beskrivning,
+      subjekt: subjekt.split(",").map((s) => s.trim()).filter(Boolean),
+      trigger: trigger.split(",").map((t) => t.trim()).filter(Boolean),
+      undantag: undantag.split(",").map((u) => u.trim()).filter(Boolean),
+      obligation,
+      åtgärder: åtgärder.split(",").map((a) => a.trim()).filter(Boolean),
+      risknivå,
+    };
+    
+    await onSave(requirement.id, updates);
+    onOpenChange(false);
   };
 
   return (
@@ -127,16 +105,6 @@ export const RequirementEditDialog = ({
               onChange={(e) => setBeskrivning(e.target.value)}
               placeholder="Detaljerad beskrivning"
               rows={4}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="lagrum">Paragraf/Lagrum</Label>
-            <Input
-              id="lagrum"
-              value={lagrum}
-              onChange={(e) => setLagrum(e.target.value)}
-              placeholder="t.ex. 8 kap. 18 §, Art. 32"
             />
           </div>
 
@@ -215,12 +183,12 @@ export const RequirementEditDialog = ({
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            disabled={saving}
+            disabled={isSaving}
           >
             Avbryt
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Spara
           </Button>
         </div>
