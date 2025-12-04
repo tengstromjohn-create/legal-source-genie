@@ -11,25 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
-import type { RequirementUpdate } from "@/lib/api/requirements";
-
-interface Requirement {
-  id: string;
-  titel: string | null;
-  beskrivning: string | null;
-  subjekt: string[] | null;
-  trigger: string[] | null;
-  undantag: string[] | null;
-  obligation: string | null;
-  åtgärder: string[] | null;
-  risknivå: string | null;
-}
+import type { UpdateRequirementInput, Requirement, RiskLevel } from "@/types/domain";
 
 interface RequirementEditDialogProps {
   requirement: Requirement;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (id: string, updates: RequirementUpdate) => Promise<void>;
+  onSave: (id: string, updates: UpdateRequirementInput) => Promise<void>;
   isSaving?: boolean;
 }
 
@@ -43,7 +31,7 @@ export const RequirementEditDialog = ({
   const [titel, setTitel] = useState("");
   const [beskrivning, setBeskrivning] = useState("");
   const [subjekt, setSubjekt] = useState("");
-  const [trigger, setTrigger] = useState("");
+  const [triggers, setTriggers] = useState("");
   const [undantag, setUndantag] = useState("");
   const [obligation, setObligation] = useState("");
   const [åtgärder, setÅtgärder] = useState("");
@@ -52,24 +40,24 @@ export const RequirementEditDialog = ({
   useEffect(() => {
     setTitel(requirement.titel || "");
     setBeskrivning(requirement.beskrivning || "");
-    setSubjekt(Array.isArray(requirement.subjekt) ? requirement.subjekt.join(", ") : "");
-    setTrigger(Array.isArray(requirement.trigger) ? requirement.trigger.join(", ") : "");
-    setUndantag(Array.isArray(requirement.undantag) ? requirement.undantag.join(", ") : "");
+    setSubjekt(requirement.subjekt?.join(", ") || "");
+    setTriggers(requirement.triggers?.join(", ") || "");
+    setUndantag(requirement.undantag?.join(", ") || "");
     setObligation(requirement.obligation || "");
-    setÅtgärder(Array.isArray(requirement.åtgärder) ? requirement.åtgärder.join(", ") : "");
+    setÅtgärder(requirement.åtgärder?.join(", ") || "");
     setRisknivå(requirement.risknivå || "");
   }, [requirement]);
 
   const handleSave = async () => {
-    const updates: RequirementUpdate = {
+    const updates: UpdateRequirementInput = {
       titel,
       beskrivning,
       subjekt: subjekt.split(",").map((s) => s.trim()).filter(Boolean),
-      trigger: trigger.split(",").map((t) => t.trim()).filter(Boolean),
+      triggers: triggers.split(",").map((t) => t.trim()).filter(Boolean),
       undantag: undantag.split(",").map((u) => u.trim()).filter(Boolean),
       obligation,
       åtgärder: åtgärder.split(",").map((a) => a.trim()).filter(Boolean),
-      risknivå,
+      risknivå: risknivå as RiskLevel || undefined,
     };
     
     await onSave(requirement.id, updates);
@@ -131,11 +119,11 @@ export const RequirementEditDialog = ({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="trigger">Trigger/Händelser (kommaseparerade)</Label>
+            <Label htmlFor="triggers">Trigger/Händelser (kommaseparerade)</Label>
             <Textarea
-              id="trigger"
-              value={trigger}
-              onChange={(e) => setTrigger(e.target.value)}
+              id="triggers"
+              value={triggers}
+              onChange={(e) => setTriggers(e.target.value)}
               placeholder="t.ex. bildande av bolag, beslut på stämma"
               rows={2}
             />
@@ -175,6 +163,7 @@ export const RequirementEditDialog = ({
               <option value="låg">Låg</option>
               <option value="medel">Medel</option>
               <option value="hög">Hög</option>
+              <option value="kritisk">Kritisk</option>
             </select>
           </div>
         </div>

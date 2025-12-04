@@ -1,16 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { Requirement, UpdateRequirementInput } from "@/types/domain";
 import {
   fetchAllRequirements,
   fetchRequirementsBySource,
   updateRequirement as apiUpdateRequirement,
   deleteRequirement as apiDeleteRequirement,
-  type RequirementUpdate,
-  type RequirementWithSource,
-  type RequirementRow,
 } from "@/lib/api/requirements";
 
-export type { RequirementUpdate, RequirementWithSource as Requirement, RequirementRow };
+export type { Requirement, UpdateRequirementInput };
 
 export function useRequirements() {
   const queryClient = useQueryClient();
@@ -40,7 +38,7 @@ export function useRequirements() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: RequirementUpdate }) =>
+    mutationFn: ({ id, updates }: { id: string; updates: UpdateRequirementInput }) =>
       apiUpdateRequirement(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["requirements"] });
@@ -65,7 +63,7 @@ export function useRequirements() {
     reload: refetch,
     deleteRequirement: deleteMutation.mutate,
     isDeleting: deleteMutation.isPending,
-    updateRequirement: (id: string, updates: RequirementUpdate) =>
+    updateRequirement: (id: string, updates: UpdateRequirementInput) =>
       updateMutation.mutateAsync({ id, updates }),
     isUpdating: updateMutation.isPending,
   };
@@ -82,7 +80,7 @@ export function useRequirementsBySource(sourceId: string | undefined) {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: RequirementUpdate }) =>
+    mutationFn: ({ id, updates }: { id: string; updates: UpdateRequirementInput }) =>
       apiUpdateRequirement(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["requirements", sourceId] });
@@ -105,7 +103,7 @@ export function useRequirementsBySource(sourceId: string | undefined) {
     isLoading,
     error,
     reload: refetch,
-    updateRequirement: (id: string, updates: RequirementUpdate) =>
+    updateRequirement: (id: string, updates: UpdateRequirementInput) =>
       updateMutation.mutate({ id, updates }),
     isUpdating: updateMutation.isPending,
   };

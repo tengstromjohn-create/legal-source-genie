@@ -46,7 +46,7 @@ export const SourceCard = ({
               </CardTitle>
             </Link>
             <CardDescription className="mt-1">
-              {new Date(source.created_at).toLocaleDateString()}
+              {source.createdAt.toLocaleDateString()}
             </CardDescription>
           </div>
         </div>

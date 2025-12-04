@@ -13,12 +13,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useLegalSource, useLegalSources } from "@/hooks/use-legal-sources";
 import { useRequirementsBySource } from "@/hooks/use-requirements";
 
+import { RiskLevel } from "@/types/domain";
+
 interface EditableRequirement {
   id: string;
   titel: string;
   beskrivning: string;
   obligation: string;
-  risknivå: string;
+  risknivå: RiskLevel | "";
 }
 
 const SourceDetail = () => {
@@ -76,8 +78,11 @@ const SourceDetail = () => {
   const handleSave = (requirementId: string) => {
     const updates = editedRequirements[requirementId];
     if (updates) {
-      const { id: _, ...updateData } = updates;
-      updateRequirement(requirementId, updateData);
+      const { id: _, risknivå, ...rest } = updates;
+      updateRequirement(requirementId, {
+        ...rest,
+        risknivå: risknivå || undefined,
+      });
       setEditedRequirements((prev) => {
         const updated = { ...prev };
         delete updated[requirementId];
@@ -122,9 +127,9 @@ const SourceDetail = () => {
             <div className="flex-1">
               <h1 className="text-3xl font-bold text-foreground mb-2">{source.title}</h1>
               <p className="text-muted-foreground">
-                {source.regelverk_name && (
+                {source.regelverkName && (
                   <Badge variant="outline" className="mr-2">
-                    {source.regelverk_name}
+                    {source.regelverkName}
                   </Badge>
                 )}
                 {source.lagrum && (
@@ -147,7 +152,7 @@ const SourceDetail = () => {
           <CardContent>
             <div className="prose max-w-none bg-muted/50 p-6 rounded-lg">
               <p className="text-sm text-foreground whitespace-pre-wrap">
-                {source.full_text || source.content}
+                {source.fullText || source.content}
               </p>
             </div>
           </CardContent>
