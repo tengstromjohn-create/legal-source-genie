@@ -1,23 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Tables } from "@/integrations/supabase/types";
+import { LegalSource, CreateLegalSourceInput, GenerateRequirementsResult } from "@/types/domain";
+import { mapSourceRowsToLegalSources, mapSourceRowToLegalSource, mapCreateSourceInputToRow } from "@/lib/domain";
 import { generateRequirementsForSource, generateEmbeddings as generateEmbeddingsApi } from "@/lib/api";
-import { GenerateRequirementsResult } from "@/types/domain";
 
-export type LegalSource = Tables<"legal_source">;
-
-export interface CreateLegalSourceInput {
-  title: string;
-  content: string;
-  full_text?: string;
-  regelverk_name?: string | null;
-  lagrum?: string | null;
-  typ?: string | null;
-  referens?: string | null;
-}
-
-export type { GenerateRequirementsResult };
+export type { LegalSource, CreateLegalSourceInput, GenerateRequirementsResult };
 
 export function useLegalSources() {
   const queryClient = useQueryClient();
@@ -25,30 +13,29 @@ export function useLegalSources() {
 
   const { data: sources, isLoading, error, refetch } = useQuery({
     queryKey: ["legal_sources"],
-    queryFn: async () => {
+    queryFn: async (): Promise<LegalSource[]> => {
       const { data, error } = await supabase
         .from("legal_source")
         .select("*")
         .order("created_at", { ascending: false });
       
       if (error) throw error;
-      return data;
+      return mapSourceRowsToLegalSources(data);
     },
   });
 
   const createMutation = useMutation({
-    mutationFn: async (newSource: CreateLegalSourceInput) => {
+    mutationFn: async (input: CreateLegalSourceInput): Promise<LegalSource> => {
+      const rowData = mapCreateSourceInputToRow(input);
+      
       const { data, error } = await supabase
         .from("legal_source")
-        .insert([{
-          ...newSource,
-          full_text: newSource.full_text || newSource.content,
-        }])
+        .insert([rowData])
         .select()
         .single();
       
       if (error) throw error;
-      return data;
+      return mapSourceRowToLegalSource(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
@@ -98,7 +85,7 @@ export function useLegalSources() {
 export function useLegalSource(id: string | undefined) {
   const { data: source, isLoading, error } = useQuery({
     queryKey: ["legal_source", id],
-    queryFn: async () => {
+    queryFn: async (): Promise<LegalSource> => {
       const { data, error } = await supabase
         .from("legal_source")
         .select("*")
@@ -106,7 +93,7 @@ export function useLegalSource(id: string | undefined) {
         .single();
       
       if (error) throw error;
-      return data;
+      return mapSourceRowToLegalSource(data);
     },
     enabled: !!id,
   });

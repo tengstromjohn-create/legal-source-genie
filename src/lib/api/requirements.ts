@@ -1,45 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
-
-export interface RequirementUpdate {
-  titel?: string;
-  beskrivning?: string;
-  obligation?: string;
-  risknivå?: string;
-  subjekt?: string[];
-  trigger?: string[];
-  undantag?: string[];
-  åtgärder?: string[];
-}
-
-export interface RequirementRow {
-  id: string;
-  titel: string | null;
-  title: string;
-  beskrivning: string | null;
-  description: string | null;
-  subjekt: any;
-  trigger: any;
-  undantag: any;
-  obligation: string | null;
-  åtgärder: any;
-  risknivå: string | null;
-  legal_source_id: string;
-  created_at: string;
-  created_by: string | null;
-}
-
-export interface RequirementWithSource extends RequirementRow {
-  legal_source?: {
-    title: string;
-    regelverk_name: string | null;
-    lagrum: string | null;
-  };
-}
+import { Requirement, UpdateRequirementInput } from "@/types/domain";
+import { mapRequirementRowsToRequirements, mapUpdateRequirementInputToRow } from "@/lib/domain";
 
 /**
  * Fetch all requirements with their legal source info
  */
-export async function fetchAllRequirements(): Promise<RequirementWithSource[]> {
+export async function fetchAllRequirements(): Promise<Requirement[]> {
   console.log("[API] Fetching all requirements");
   
   const { data, error } = await supabase
@@ -60,13 +26,13 @@ export async function fetchAllRequirements(): Promise<RequirementWithSource[]> {
   }
 
   console.log("[API] Fetched", data?.length || 0, "requirements");
-  return data as unknown as RequirementWithSource[];
+  return mapRequirementRowsToRequirements(data as any);
 }
 
 /**
  * Fetch requirements for a specific legal source
  */
-export async function fetchRequirementsBySource(sourceId: string): Promise<RequirementRow[]> {
+export async function fetchRequirementsBySource(sourceId: string): Promise<Requirement[]> {
   console.log("[API] Fetching requirements for source:", sourceId);
   
   const { data, error } = await supabase
@@ -81,18 +47,20 @@ export async function fetchRequirementsBySource(sourceId: string): Promise<Requi
   }
 
   console.log("[API] Fetched", data?.length || 0, "requirements for source");
-  return data;
+  return mapRequirementRowsToRequirements(data as any);
 }
 
 /**
  * Update a requirement
  */
-export async function updateRequirement(id: string, updates: RequirementUpdate): Promise<void> {
+export async function updateRequirement(id: string, updates: UpdateRequirementInput): Promise<void> {
   console.log("[API] Updating requirement:", id, updates);
+  
+  const rowUpdates = mapUpdateRequirementInputToRow(updates);
   
   const { error } = await supabase
     .from("requirement")
-    .update(updates)
+    .update(rowUpdates)
     .eq("id", id);
 
   if (error) {

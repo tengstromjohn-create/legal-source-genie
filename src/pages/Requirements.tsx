@@ -37,12 +37,10 @@ const Requirements = () => {
   const filteredRequirements = requirements?.filter((req) => {
     const searchLower = searchTerm.toLowerCase();
     return (
-      (req.titel?.toLowerCase().includes(searchLower) ||
-      req.title?.toLowerCase().includes(searchLower) ||
+      req.titel?.toLowerCase().includes(searchLower) ||
       req.beskrivning?.toLowerCase().includes(searchLower) ||
-      req.description?.toLowerCase().includes(searchLower) ||
-      req.legal_source?.title?.toLowerCase().includes(searchLower) ||
-      req.legal_source?.lagrum?.toLowerCase().includes(searchLower))
+      req.legalSource?.title?.toLowerCase().includes(searchLower) ||
+      req.legalSource?.lagrum?.toLowerCase().includes(searchLower)
     );
   });
 
@@ -142,17 +140,17 @@ const Requirements = () => {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <CardTitle className="text-xl">
-                      {req.titel || req.title}
+                      {req.titel}
                     </CardTitle>
                     <CardDescription className="mt-2 space-y-1">
                       <div>
                         <span className="font-semibold">Källa:</span>{" "}
-                        {req.legal_source?.regelverk_name || req.legal_source?.title}
+                        {req.legalSource?.regelverkName || req.legalSource?.title}
                       </div>
-                      {req.legal_source?.lagrum && (
+                      {req.legalSource?.lagrum && (
                         <div>
                           <span className="font-semibold">Paragraf:</span>{" "}
-                          {req.legal_source.lagrum}
+                          {req.legalSource.lagrum}
                         </div>
                       )}
                     </CardDescription>
@@ -184,12 +182,12 @@ const Requirements = () => {
                       Beskrivning:
                     </p>
                     <p className="text-sm">
-                      {req.beskrivning || req.description || "-"}
+                      {req.beskrivning || "-"}
                     </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    {req.subjekt && Array.isArray(req.subjekt) && req.subjekt.length > 0 && (
+                    {req.subjekt && req.subjekt.length > 0 && (
                       <div>
                         <p className="text-sm text-muted-foreground mb-1">Subjekt:</p>
                         <p className="text-sm">{req.subjekt.join(", ")}</p>
@@ -223,21 +221,21 @@ const Requirements = () => {
                     )}
                   </div>
 
-                  {req.trigger && Array.isArray(req.trigger) && req.trigger.length > 0 && (
+                  {req.triggers && req.triggers.length > 0 && (
                     <div>
                       <p className="text-sm text-muted-foreground mb-1">Trigger:</p>
-                      <p className="text-sm">{req.trigger.join(", ")}</p>
+                      <p className="text-sm">{req.triggers.join(", ")}</p>
                     </div>
                   )}
 
-                  {req.åtgärder && Array.isArray(req.åtgärder) && req.åtgärder.length > 0 && (
+                  {req.åtgärder && req.åtgärder.length > 0 && (
                     <div>
                       <p className="text-sm text-muted-foreground mb-1">Åtgärder:</p>
                       <p className="text-sm">{req.åtgärder.join(", ")}</p>
                     </div>
                   )}
 
-                  {req.undantag && Array.isArray(req.undantag) && req.undantag.length > 0 && (
+                  {req.undantag && req.undantag.length > 0 && (
                     <div>
                       <p className="text-sm text-muted-foreground mb-1">Undantag:</p>
                       <p className="text-sm">{req.undantag.join(", ")}</p>

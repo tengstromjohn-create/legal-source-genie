@@ -37,10 +37,10 @@ export const SourceForm = ({ isCreating, onSubmit, onCancel }: SourceFormProps) 
     onSubmit({
       title,
       content,
-      regelverk_name: regelverkName || null,
-      lagrum: lagrum || null,
-      typ: typ || null,
-      referens: referens || null,
+      regelverkName: regelverkName || undefined,
+      lagrum: lagrum || undefined,
+      typ: (typ as any) || undefined,
+      referens: referens || undefined,
     }, {
       onSuccess: () => {
         setTitle("");

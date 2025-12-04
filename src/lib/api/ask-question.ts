@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
-import { AskQuestionResult } from "@/types/domain";
+import { AskQuestionResult, SourceReference } from "@/types/domain";
+import { mapLegalMatchesToSourceReferences } from "@/lib/domain";
 
 /**
  * Ask a legal question and get an AI-generated answer based on relevant legal sources
@@ -20,8 +21,13 @@ export async function askLegalQuestion(
 
   console.log(`[API] Got answer with ${data?.matches?.length || 0} matches`);
   
+  // Map raw matches to domain SourceReferences
+  const matches: SourceReference[] = data?.matches
+    ? mapLegalMatchesToSourceReferences(data.matches)
+    : [];
+  
   return {
     answer: data?.answer || '',
-    matches: data?.matches || [],
+    matches,
   };
 }
