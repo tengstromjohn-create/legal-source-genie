@@ -1,13 +1,13 @@
 project_id = "goclbjumhryxqcumbbak"
 
 [functions.generate-requirements]
-verify_jwt = false
+verify_jwt = true
 
 [functions.parse-legal-pdf]
-verify_jwt = false
+verify_jwt = true
 
 [functions.generate-embeddings]
-verify_jwt = false
+verify_jwt = true
 
 [functions.ask-legal-question]
-verify_jwt = false
+verify_jwt = true
