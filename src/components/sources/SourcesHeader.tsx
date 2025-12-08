@@ -1,9 +1,10 @@
 import { useNavigate } from "react-router-dom";
-import { Plus, FileText, Loader2, Sparkles, LogOut, CheckSquare, Square } from "lucide-react";
+import { Plus, FileText, Loader2, Sparkles, LogOut, CheckSquare, Square, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PdfUploadDialog } from "@/components/PdfUploadDialog";
 import { RiksdagenImportDialog } from "@/components/RiksdagenImportDialog";
 import { WorkspaceSelector } from "@/components/layout/WorkspaceSelector";
+import { useDemoData } from "@/hooks/use-demo-data";
 
 interface SourcesHeaderProps {
   isAdmin: boolean;
@@ -31,6 +32,7 @@ export const SourcesHeader = ({
   onSignOut,
 }: SourcesHeaderProps) => {
   const navigate = useNavigate();
+  const { loadDemoData, isLoading: isDemoLoading } = useDemoData();
 
   return (
     <header className="border-b border-border bg-card">
@@ -110,6 +112,19 @@ export const SourcesHeader = ({
                 </Button>
               </>
             )}
+            <Button 
+              variant="outline" 
+              onClick={loadDemoData}
+              disabled={isDemoLoading}
+              className="gap-2"
+            >
+              {isDemoLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FlaskConical className="h-4 w-4" />
+              )}
+              Ladda demo-data
+            </Button>
             <Button variant="outline" onClick={onSignOut} className="gap-2">
               <LogOut className="h-4 w-4" />
               Sign Out

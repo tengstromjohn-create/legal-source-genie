@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { GenerationProgressDialog, SourceProgress } from "@/components/GenerationProgressDialog";
 import { useLegalSources } from "@/hooks/use-legal-sources";
 import { SourcesHeader, SourcesList, SourceForm } from "@/components/sources";
+import { DemoBanner } from "@/components/layout/DemoBanner";
 
 const Sources = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -201,6 +202,8 @@ const Sources = () => {
         onOpenForm={() => setIsFormOpen(true)}
         onSignOut={signOut}
       />
+      
+      <DemoBanner />
 
       <main className="container mx-auto px-4 py-8">
         {isFormOpen && isAdmin && (

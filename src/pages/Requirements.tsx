@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { RequirementEditDialog } from "@/components/RequirementEditDialog";
 import { RequirementCard } from "@/components/requirements/RequirementCard";
 import { RequirementsListSkeleton } from "@/components/ui/skeletons";
+import { DemoBanner } from "@/components/layout/DemoBanner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -136,6 +137,8 @@ const Requirements = () => {
           </div>
         </div>
       </header>
+
+      <DemoBanner />
 
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6">
