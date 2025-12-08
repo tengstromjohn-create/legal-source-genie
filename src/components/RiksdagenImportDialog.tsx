@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRiksdagenSearch, RiksdagenDocument } from "@/hooks/use-riksdagen-search";
+import { useActiveWorkspaceId } from "@/hooks/use-workspaces";
 
 export const RiksdagenImportDialog = () => {
   const [open, setOpen] = useState(false);
@@ -24,6 +25,7 @@ export const RiksdagenImportDialog = () => {
   const [importing, setImporting] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const workspaceId = useActiveWorkspaceId();
   
   const { results, isLoading, error, search, reset, removeResult } = useRiksdagenSearch();
 
@@ -91,6 +93,7 @@ export const RiksdagenImportDialog = () => {
         lagrum: doc.beteckning,
         typ: "lag",
         referens: doc.beteckning,
+        workspace_id: workspaceId,
       });
 
       if (error) throw error;
@@ -100,7 +103,7 @@ export const RiksdagenImportDialog = () => {
         description: `${doc.beteckning} har importerats`,
       });
 
-      queryClient.invalidateQueries({ queryKey: ["legal_sources"] });
+      queryClient.invalidateQueries({ queryKey: ["legal_sources", workspaceId] });
       removeResult(doc.dok_id);
       
     } catch (error: any) {
