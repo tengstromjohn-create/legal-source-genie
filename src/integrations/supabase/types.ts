@@ -246,6 +246,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_workspace_member: { Args: { _workspace_id: string }; Returns: boolean }
       match_legal_sources: {
         Args: {
           match_count?: number
