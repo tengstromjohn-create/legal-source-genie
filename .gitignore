@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Miljövariabler — committas aldrig
+.env
+.env.local
