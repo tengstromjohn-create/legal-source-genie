@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { LAW_SYSTEM_PROMPT } from "./prompts.ts";
 import { buildChunks, type SourceKind } from "../_shared/chunking.ts";
 import { complete, modelLabel, parseJsonResponse } from "../_shared/extraction-model.ts";
+import { reviewKrav, reviewerLabel } from "../_shared/review.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,9 +41,58 @@ function normalizeRisk(v?: string): string | null {
   return RISK.has(s) ? s : null;
 }
 
-// Dedupe-nyckel: paragraf + normaliserad titel.
 function dedupeKey(k: ExtractedKrav): string {
   return `${(k.paragraf ?? "").toLowerCase().trim()}|${k.titel.toLowerCase().trim()}`;
+}
+
+// Granska ett insatt krav mot källtexten, lagra domslut och flytta till in_review.
+async function reviewAndAdvance(
+  supabase: SupabaseClient,
+  row: Record<string, any>,
+  sourceText: string,
+) {
+  try {
+    const verdict = await reviewKrav(
+      {
+        titel: row.titel,
+        beskrivning: row.beskrivning,
+        lagrum: row.lagrum,
+        subjekt: row.subjekt,
+        risknivå: row.risknivå,
+        obligation: row.obligation,
+      },
+      sourceText,
+    );
+
+    await supabase.from("model_verdict").insert({
+      requirement_id: row.id,
+      role: "reviewer",
+      provider: verdict.provider,
+      model: verdict.model,
+      agrees: verdict.agrees,
+      confidence: verdict.confidence,
+      issues: verdict.issues,
+      suggested_lagrum: verdict.suggestedLagrum,
+      raw: verdict.raw,
+    });
+
+    const flags = [...verdict.issues];
+    if (!verdict.agrees) flags.unshift("granskare_avviker");
+
+    await supabase.from("requirement").update({
+      status: "in_review",
+      reviewer_confidence: verdict.confidence,
+      reviewer_flags: flags,
+    }).eq("id", row.id);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Okänt fel";
+    // Granskning misslyckades — flagga och köa ändå, sorteras först (null-konfidens).
+    await supabase.from("requirement").update({
+      status: "in_review",
+      reviewer_confidence: null,
+      reviewer_flags: ["granskning_misslyckades: " + msg],
+    }).eq("id", row.id);
+  }
 }
 
 async function processJob(
@@ -68,7 +118,6 @@ async function processJob(
       return;
     }
 
-    // Registrera chunkar
     await supabase.from("extraction_chunk").insert(
       chunks.map((c) => ({
         job_id: jobId,
@@ -129,9 +178,15 @@ async function processJob(
             status: "draft",
             created_by: "ai",
           }));
-          const { error } = await supabase.from("requirement").insert(rows);
+          const { data: inserted, error } = await supabase
+            .from("requirement").insert(rows).select();
           if (error) throw new Error(`Insert: ${error.message}`);
           totalInserted += rows.length;
+
+          // Oberoende granskning av varje krav, sekventiellt.
+          for (const row of inserted ?? []) {
+            await reviewAndAdvance(supabase, row, c.text);
+          }
         }
 
         await supabase.from("extraction_chunk")
@@ -198,7 +253,7 @@ serve(async (req) => {
         legal_source_id,
         workspace_id: workspace_id ?? source.workspace_id ?? null,
         status: "pending",
-        model: modelLabel("extractor"),
+        model: `${modelLabel("extractor")} + ${reviewerLabel()}`,
       })
       .select("id").single();
 
@@ -206,7 +261,6 @@ serve(async (req) => {
       return json({ errorCode: "SERVER_ERROR", message: "Kunde inte skapa jobb" }, 500);
     }
 
-    // Bakgrundsbearbetning — funktionen svarar direkt, klienten pollar jobbet.
     // @ts-ignore EdgeRuntime finns i Supabase-runtimen
     EdgeRuntime.waitUntil(processJob(supabase, job.id, source));
 
