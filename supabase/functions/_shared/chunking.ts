@@ -30,7 +30,7 @@ export type SourceKind =
   | "direktiv"
   | "annat";
 
-const DEFAULT_MAX_CHARS = 40000;
+const DEFAULT_MAX_CHARS = 12000;
 
 function normalize(text: string): string {
   return text.replace(/\r\n/g, "\n").replace(/[ \t]+/g, " ").trim();
@@ -158,7 +158,7 @@ export function chunk(
 
   // Kontextrubriken får ta högst en fjärdedel av gränsen, så att
   // rubrik + innehåll tillsammans garanterat ryms under maxChars.
-  const headerCap = Math.min(4000, Math.floor(maxChars * 0.25));
+  const headerCap = Math.min(2000, Math.floor(maxChars * 0.2));
   const contextHeader = buildContextHeader(units, headerCap);
   const budget = Math.max(500, maxChars - contextHeader.length);
   const chunks: Chunk[] = [];
