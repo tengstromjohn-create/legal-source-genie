@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.ask-legal-question]
 verify_jwt = true
+
+[functions.process-extraction-chunk]
+verify_jwt = false
