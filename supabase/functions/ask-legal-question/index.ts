@@ -112,7 +112,6 @@ serve(async (req) => {
     const { data: matches, error } = await supabase.rpc('match_legal_sources', {
       query_embedding: queryEmbedding,
       match_count: 5,
-      match_threshold: 0.5,
     });
 
     if (error) {
@@ -136,7 +135,7 @@ serve(async (req) => {
     // 3) Build context from matches
     const contextText = matches
       .map((m: any) => 
-        `Lagrum: ${m.lagrum || 'Ej angiven'}\nTitel: ${m.title}\n\nText:\n${m.content}\n-----------------`
+        `Lagrum: ${m.lagrum || 'Ej angiven'}\n\nText:\n${m.full_text}\n-----------------`
       )
       .join('\n\n');
 
@@ -194,10 +193,9 @@ Svara tydligt, på svenska, och hänvisa till relevanta lagrum (ange lagrumstext
         answer,
         matches: matches.map((m: any) => ({
           id: m.id,
-          title: m.title,
           lagrum: m.lagrum,
+          full_text: m.full_text,
           similarity: m.similarity,
-          regelverk_name: m.regelverk_name,
         })),
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

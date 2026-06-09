@@ -31,7 +31,7 @@ serve(async (req) => {
     // Fetch sources without embeddings
     const { data: sources, error: fetchError } = await supabase
       .from("legal_source")
-      .select("id, full_text, content")
+      .select("id, full_text")
       .is("embedding", null)
       .limit(limit);
 
@@ -55,7 +55,7 @@ serve(async (req) => {
 
     for (const source of sources) {
       try {
-        const textToEmbed = source.full_text || source.content;
+        const textToEmbed = source.full_text;
         
         if (!textToEmbed || textToEmbed.trim().length === 0) {
           console.log(`Skipping source ${source.id} - no text content`);
