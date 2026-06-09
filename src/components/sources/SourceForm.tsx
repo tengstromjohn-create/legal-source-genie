@@ -35,9 +35,8 @@ export const SourceForm = ({ isCreating, onSubmit, onCancel }: SourceFormProps) 
     }
     
     onSubmit({
-      title,
-      content,
-      regelverkName: regelverkName || undefined,
+      regelverkName: regelverkName || title,
+      fullText: content,
       lagrum: lagrum || undefined,
       typ: (typ as any) || undefined,
       referens: referens || undefined,

@@ -26,7 +26,7 @@ const PAGE_SIZE = 20;
 const Requirements = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRequirement, setSelectedRequirement] = useState<Requirement | null>(null);
-  const [deleteRequirementId, setDeleteRequirementId] = useState<string | null>(null);
+  const [deleteRequirementId, setDeleteRequirementId] = useState<number | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
@@ -73,7 +73,7 @@ const Requirements = () => {
     }
   }, [deleteRequirementId, deleteRequirement]);
 
-  const handleSaveRequirement = useCallback(async (id: string, updates: Parameters<typeof updateRequirement>[1]) => {
+  const handleSaveRequirement = useCallback(async (id: number, updates: Parameters<typeof updateRequirement>[1]) => {
     await updateRequirement(id, updates);
     setSelectedRequirement(null);
   }, [updateRequirement]);
@@ -82,7 +82,7 @@ const Requirements = () => {
     setSelectedRequirement(req);
   }, []);
 
-  const handleRequestDelete = useCallback((id: string) => {
+  const handleRequestDelete = useCallback((id: number) => {
     setDeleteRequirementId(id);
   }, []);
 

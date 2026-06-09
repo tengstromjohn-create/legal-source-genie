@@ -20,7 +20,7 @@ export interface StartExtractionResult {
  * eller waitForExtractionJob för att följa förloppet.
  */
 export async function startRequirementExtraction(
-  sourceId: string,
+  sourceId: number,
   workspaceId?: string | null,
 ): Promise<StartExtractionResult> {
   const { data, error } = await supabase.functions.invoke("generate-requirements", {
@@ -74,7 +74,7 @@ export async function waitForExtractionJob(
  * onProgress låter anroparen visa förlopp ("chunk X av Y").
  */
 export async function generateRequirementsForSource(
-  sourceId: string,
+  sourceId: number,
   workspaceId?: string | null,
   onProgress?: (s: ExtractionJobStatus) => void,
 ): Promise<{ inserted: number; jobId: string }> {

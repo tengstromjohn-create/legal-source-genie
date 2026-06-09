@@ -8,8 +8,8 @@ import { DemoBanner } from "@/components/layout/DemoBanner";
 
 const Sources = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [generatingId, setGeneratingId] = useState<string | null>(null);
-  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
+  const [generatingId, setGeneratingId] = useState<number | null>(null);
+  const [selectedSources, setSelectedSources] = useState<Set<number>>(new Set());
   const [isBatchGenerating, setIsBatchGenerating] = useState(false);
   const [isGeneratingEmbeddings, setIsGeneratingEmbeddings] = useState(false);
   const [progressSources, setProgressSources] = useState<SourceProgress[]>([]);
@@ -27,7 +27,7 @@ const Sources = () => {
     generateEmbeddings,
   } = useLegalSources();
 
-  const handleGenerateRequirements = async (sourceId: string) => {
+  const handleGenerateRequirements = async (sourceId: number) => {
     const source = sources?.find(s => s.id === sourceId);
     if (!source) return;
     
@@ -147,7 +147,7 @@ const Sources = () => {
     }, 1500);
   };
 
-  const toggleSourceSelection = (sourceId: string) => {
+  const toggleSourceSelection = (sourceId: number) => {
     setSelectedSources(prev => {
       const newSet = new Set(prev);
       if (newSet.has(sourceId)) {

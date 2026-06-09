@@ -21,7 +21,7 @@ export type LegalSourceType =
 
 export type RiskLevel = "låg" | "medel" | "hög" | "kritisk";
 
-export type RequirementStatus = "active" | "draft" | "archived";
+export type RequirementStatus = "draft" | "in_review" | "approved" | "rejected" | "archived";
 
 // -----------------------------------------------------------------------------
 // Core Domain Types
@@ -31,8 +31,10 @@ export type RequirementStatus = "active" | "draft" | "archived";
  * Legal Source - A piece of legal text (law, regulation, court decision, etc.)
  */
 export interface LegalSource {
-  id: string;
+  id: number;
+  /** Visningstitel — härleds från regelverkName/lagrum (schemat saknar egen title-kolumn). */
   title: string;
+  /** Brödtext — härleds från fullText (schemat saknar egen content-kolumn). */
   content: string;
   fullText?: string;
   regelverkName?: string;
@@ -41,19 +43,20 @@ export interface LegalSource {
   referens?: string;
   hasEmbedding: boolean;
   createdAt: Date;
-  updatedAt: Date;
+  updatedAt?: Date;
 }
 
 /**
  * Requirement - A compliance requirement derived from a legal source
  */
 export interface Requirement {
-  id: string;
-  legalSourceId: string;
+  id: number;
+  legalSourceId: number;
   
   // Swedish fields (primary)
   titel: string;
   beskrivning?: string;
+  lagrum?: string;
   
   // Structured fields
   obligation?: string;
@@ -62,6 +65,11 @@ export interface Requirement {
   åtgärder: string[];
   undantag: string[];
   risknivå: RiskLevel;
+  
+  // Lifecycle & review
+  status: RequirementStatus;
+  reviewerConfidence?: number;
+  reviewerFlags: string[];
   
   // Metadata
   createdAt: Date;
@@ -75,7 +83,7 @@ export interface Requirement {
  * Lightweight summary of a legal source (for joins)
  */
 export interface LegalSourceSummary {
-  id: string;
+  id: number;
   title: string;
   regelverkName?: string;
   lagrum?: string;
@@ -125,7 +133,7 @@ export interface ChatMessage {
  * Reference to a source with similarity score
  */
 export interface SourceReference {
-  sourceId: string;
+  sourceId: number;
   title: string;
   lagrum?: string;
   regelverkName?: string;
@@ -160,9 +168,9 @@ export interface GenerateEmbeddingsResult {
 }
 
 export interface LegalMatch {
-  id: string;
-  title: string;
+  id: number;
   lagrum: string;
+  full_text?: string;
   similarity: number;
   regelverk_name?: string;
 }
@@ -207,10 +215,8 @@ export interface RiksdagenDocument {
 // -----------------------------------------------------------------------------
 
 export interface CreateLegalSourceInput {
-  title: string;
-  content: string;
-  fullText?: string;
-  regelverkName?: string;
+  regelverkName: string;
+  fullText: string;
   lagrum?: string;
   typ?: LegalSourceType;
   referens?: string;

@@ -86,10 +86,8 @@ export const RiksdagenImportDialog = () => {
 
       // Create the legal source
       const { error } = await supabase.from("legal_source").insert({
-        title: doc.beteckning || doc.titel,
-        content: content.substring(0, 5000),
         full_text: content,
-        regelverk_name: "SFS",
+        regelverk_name: doc.titel || "SFS",
         lagrum: doc.beteckning,
         typ: "lag",
         referens: doc.beteckning,

@@ -17,7 +17,7 @@ interface RequirementEditDialogProps {
   requirement: Requirement;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (id: string, updates: UpdateRequirementInput) => Promise<void>;
+  onSave: (id: number, updates: UpdateRequirementInput) => Promise<void>;
   isSaving?: boolean;
 }
 
