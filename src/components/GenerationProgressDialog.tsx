@@ -10,7 +10,7 @@ import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 export interface SourceProgress {
-  id: string;
+  id: number;
   title: string;
   status: "pending" | "processing" | "completed" | "failed";
   requirementsCount?: number;

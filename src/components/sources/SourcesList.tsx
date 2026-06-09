@@ -9,11 +9,11 @@ interface SourcesListProps {
   sources: LegalSource[] | undefined;
   isLoading: boolean;
   isAdmin: boolean;
-  selectedSources: Set<string>;
-  generatingId: string | null;
+  selectedSources: Set<number>;
+  generatingId: number | null;
   isBatchGenerating: boolean;
-  onToggleSelection: (sourceId: string) => void;
-  onGenerateRequirements: (sourceId: string) => void;
+  onToggleSelection: (sourceId: number) => void;
+  onGenerateRequirements: (sourceId: number) => void;
   onOpenForm: () => void;
   hasMore?: boolean;
   onLoadMore?: () => void;

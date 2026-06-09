@@ -63,7 +63,7 @@ export function useRequirements() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: UpdateRequirementInput }) =>
+    mutationFn: ({ id, updates }: { id: number; updates: UpdateRequirementInput }) =>
       apiUpdateRequirement(id, updates),
     onSuccess: (updatedReq, { id }) => {
       // Optimistically update cache
@@ -96,7 +96,7 @@ export function useRequirements() {
     reload: refetch,
     deleteRequirement: deleteMutation.mutate,
     isDeleting: deleteMutation.isPending,
-    updateRequirement: (id: string, updates: UpdateRequirementInput) =>
+    updateRequirement: (id: number, updates: UpdateRequirementInput) =>
       updateMutation.mutateAsync({ id, updates }),
     isUpdating: updateMutation.isPending,
   };
@@ -158,7 +158,7 @@ export function useRequirementsPaginated() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: UpdateRequirementInput }) =>
+    mutationFn: ({ id, updates }: { id: number; updates: UpdateRequirementInput }) =>
       apiUpdateRequirement(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["requirements_paginated", workspaceId] });
@@ -187,13 +187,13 @@ export function useRequirementsPaginated() {
     reload: refetch,
     deleteRequirement: deleteMutation.mutate,
     isDeleting: deleteMutation.isPending,
-    updateRequirement: (id: string, updates: UpdateRequirementInput) =>
+    updateRequirement: (id: number, updates: UpdateRequirementInput) =>
       updateMutation.mutateAsync({ id, updates }),
     isUpdating: updateMutation.isPending,
   };
 }
 
-export function useRequirementsBySource(sourceId: string | undefined) {
+export function useRequirementsBySource(sourceId: number | undefined) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -212,7 +212,7 @@ export function useRequirementsBySource(sourceId: string | undefined) {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: UpdateRequirementInput }) =>
+    mutationFn: ({ id, updates }: { id: number; updates: UpdateRequirementInput }) =>
       apiUpdateRequirement(id, updates),
     onSuccess: (updatedReq, { id }) => {
       queryClient.setQueryData<Requirement[]>(
@@ -242,7 +242,7 @@ export function useRequirementsBySource(sourceId: string | undefined) {
     isLoading,
     error,
     reload: refetch,
-    updateRequirement: (id: string, updates: UpdateRequirementInput) =>
+    updateRequirement: (id: number, updates: UpdateRequirementInput) =>
       updateMutation.mutate({ id, updates }),
     isUpdating: updateMutation.isPending,
   };

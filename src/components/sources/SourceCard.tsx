@@ -12,8 +12,8 @@ interface SourceCardProps {
   isSelected: boolean;
   isGenerating: boolean;
   isBatchGenerating: boolean;
-  onToggleSelection: (sourceId: string) => void;
-  onGenerateRequirements: (sourceId: string) => void;
+  onToggleSelection: (sourceId: number) => void;
+  onGenerateRequirements: (sourceId: number) => void;
 }
 
 const SourceCardComponent = ({

@@ -68,7 +68,7 @@ export async function fetchRequirementsPaginated(
 /**
  * Fetch requirements for a specific legal source
  */
-export async function fetchRequirementsBySource(sourceId: string): Promise<Requirement[]> {
+export async function fetchRequirementsBySource(sourceId: number): Promise<Requirement[]> {
   const { data, error } = await supabase
     .from("requirement")
     .select("*")
@@ -85,12 +85,12 @@ export async function fetchRequirementsBySource(sourceId: string): Promise<Requi
 /**
  * Update a requirement and return the updated requirement
  */
-export async function updateRequirement(id: string, updates: UpdateRequirementInput): Promise<Requirement> {
+export async function updateRequirement(id: number, updates: UpdateRequirementInput): Promise<Requirement> {
   const rowUpdates = mapUpdateRequirementInputToRow(updates);
   
   const { data, error } = await supabase
     .from("requirement")
-    .update(rowUpdates)
+    .update(rowUpdates as never)
     .eq("id", id)
     .select()
     .single();
@@ -105,7 +105,7 @@ export async function updateRequirement(id: string, updates: UpdateRequirementIn
 /**
  * Delete a requirement
  */
-export async function deleteRequirement(id: string): Promise<void> {
+export async function deleteRequirement(id: number): Promise<void> {
   const { error } = await supabase
     .from("requirement")
     .delete()

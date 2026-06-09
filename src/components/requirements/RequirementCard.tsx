@@ -8,7 +8,7 @@ interface RequirementCardProps {
   requirement: Requirement;
   isAdmin: boolean;
   onEdit: (requirement: Requirement) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: number) => void;
 }
 
 const RequirementCardComponent = ({

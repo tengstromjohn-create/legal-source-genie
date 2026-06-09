@@ -85,7 +85,7 @@ export function useLegalSources() {
     },
   });
 
-  const generateRequirements = async (sourceId: string): Promise<GenerateRequirementsResult> => {
+  const generateRequirements = async (sourceId: number): Promise<GenerateRequirementsResult> => {
     try {
       const result = await generateRequirementsForSource(sourceId, workspaceId);
       
@@ -182,7 +182,7 @@ export function useLegalSourcesPaginated() {
   };
 }
 
-export function useLegalSource(id: string | undefined) {
+export function useLegalSource(id: number | undefined) {
   const { data: source, isLoading, error } = useQuery({
     queryKey: ["legal_source", id],
     queryFn: async (): Promise<LegalSource> => {

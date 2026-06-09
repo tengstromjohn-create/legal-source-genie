@@ -26,7 +26,7 @@ export interface ApiError {
 export interface ErrorContext {
   component?: string;
   action?: string;
-  sourceId?: string;
+  sourceId?: string | number;
   userId?: string;
   workspaceId?: string;
   [key: string]: unknown;

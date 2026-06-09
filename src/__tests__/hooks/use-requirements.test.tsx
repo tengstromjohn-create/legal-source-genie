@@ -104,7 +104,7 @@ describe("useRequirementsBySource", () => {
   });
 
   it("fetches requirements for specific source", async () => {
-    const sourceId = "source-123";
+    const sourceId = 123;
     const mockRequirements = [
       { id: "req-1", title: "Requirement 1", legal_source_id: sourceId },
     ];

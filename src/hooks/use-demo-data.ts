@@ -33,10 +33,9 @@ export function useDemoData() {
 
       // 2. Insert demo legal sources
       const sourceInserts = DEMO_LEGAL_SOURCES.map((source) => ({
-        title: source.title,
-        content: source.content,
-        regelverk_name: source.regelverkName,
-        lagrum: source.lagrum,
+        regelverk_name: source.regelverkName ?? source.title,
+        full_text: source.content,
+        lagrum: source.lagrum ?? source.regelverkName ?? source.title,
         typ: source.typ,
         referens: source.referens,
         workspace_id: workspace.id,
@@ -52,7 +51,6 @@ export function useDemoData() {
       // 3. Insert demo requirements linked to sources
       if (insertedSources && insertedSources.length > 0) {
         const requirementInserts = DEMO_REQUIREMENTS.map((req) => ({
-          title: req.title,
           titel: req.titel,
           beskrivning: req.beskrivning,
           obligation: req.obligation,

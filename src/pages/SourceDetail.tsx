@@ -16,7 +16,7 @@ import { useRequirementsBySource } from "@/hooks/use-requirements";
 import { RiskLevel } from "@/types/domain";
 
 interface EditableRequirement {
-  id: string;
+  id: number;
   titel: string;
   beskrivning: string;
   obligation: string;
@@ -25,12 +25,13 @@ interface EditableRequirement {
 
 const SourceDetail = () => {
   const { id } = useParams<{ id: string }>();
+  const sourceId = id ? Number(id) : undefined;
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const { isAdmin } = useAuth();
-  const [editedRequirements, setEditedRequirements] = useState<Record<string, EditableRequirement>>({});
+  const [editedRequirements, setEditedRequirements] = useState<Record<number, EditableRequirement>>({});
 
-  const { source, isLoading: sourceLoading } = useLegalSource(id);
+  const { source, isLoading: sourceLoading } = useLegalSource(sourceId);
   const { generateRequirements } = useLegalSources();
   const { 
     requirements, 
@@ -38,14 +39,14 @@ const SourceDetail = () => {
     updateRequirement,
     isUpdating,
     reload: reloadRequirements,
-  } = useRequirementsBySource(id);
+  } = useRequirementsBySource(sourceId);
 
   const handleGenerateRequirements = async () => {
-    if (!id) return;
+    if (!sourceId) return;
     
     setIsGenerating(true);
     try {
-      const result = await generateRequirements(id);
+      const result = await generateRequirements(sourceId);
 
       toast({
         title: "Success",
@@ -64,7 +65,7 @@ const SourceDetail = () => {
     }
   };
 
-  const handleFieldChange = (requirementId: string, field: keyof EditableRequirement, value: string) => {
+  const handleFieldChange = (requirementId: number, field: keyof EditableRequirement, value: string) => {
     setEditedRequirements((prev) => ({
       ...prev,
       [requirementId]: {
@@ -75,7 +76,7 @@ const SourceDetail = () => {
     }));
   };
 
-  const handleSave = (requirementId: string) => {
+  const handleSave = (requirementId: number) => {
     const updates = editedRequirements[requirementId];
     if (updates) {
       const { id: _, risknivå, ...rest } = updates;
