@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import { buildChunks, type SourceKind } from "../_shared/chunking.ts";
+import { chunkProvisions, segmentSource, type SourceKind } from "../_shared/chunking.ts";
 import { modelLabel } from "../_shared/extraction-model.ts";
 import { reviewerLabel } from "../_shared/review.ts";
 
@@ -60,7 +60,56 @@ serve(async (req) => {
     const fullText: string = source.full_text || "";
     const kind = (source.typ || "lag") as SourceKind;
     const regelverk = source.regelverk_name || source.lagrum || "Okänt regelverk";
-    const chunks = buildChunks(fullText, regelverk, kind, MAX_CHUNK_CHARS);
+
+    // Segmentera med sekvensvalidering. Misslyckad validering stoppar hela
+    // importen — hellre ett tydligt fel än tyst felmärkta krav (audit 2026-07-05).
+    const seg = segmentSource(fullText, regelverk, kind);
+    if (!seg.ok) {
+      log("error", "Segmentering misslyckades", {
+        sourceId: legal_source_id,
+        errors: seg.errors,
+        warnings: seg.warnings.slice(0, 10),
+      });
+      return json({
+        errorCode: "SEGMENTATION_ERROR",
+        message: `Segmentering misslyckades: ${seg.errors.join("; ")}`,
+        warnings: seg.warnings.slice(0, 20),
+      }, 422);
+    }
+    if (seg.warnings.length > 0) {
+      log("warn", "Segmenteringsvarningar", {
+        sourceId: legal_source_id,
+        count: seg.warnings.length,
+        first: seg.warnings.slice(0, 10),
+      });
+    }
+
+    // Paragrafindex: ersätt källans befintliga index med det nya facit.
+    await supabase.from("source_provision").delete().eq("legal_source_id", legal_source_id);
+    for (let i = 0; i < seg.provisions.length; i += 400) {
+      const batch = seg.provisions.slice(i, i + 400).map((pr) => ({
+        legal_source_id,
+        kapitel: pr.kapitel,
+        paragraf: pr.paragraf,
+        label: pr.label,
+        heading: pr.heading ?? null,
+        text: pr.text,
+        char_start: pr.charStart,
+        char_end: pr.charEnd,
+      }));
+      const { error: provError } = await supabase.from("source_provision").insert(batch);
+      if (provError) {
+        log("error", "Kunde inte lagra paragrafindex", { error: provError.message });
+        return json({ errorCode: "SERVER_ERROR", message: `Paragrafindex: ${provError.message}` }, 500);
+      }
+    }
+    log("info", "Paragrafindex lagrat", {
+      sourceId: legal_source_id,
+      provisions: seg.provisions.length,
+      coverage: Math.round(seg.coverage * 100),
+    });
+
+    const chunks = chunkProvisions(seg.provisions, regelverk, MAX_CHUNK_CHARS);
 
     const { data: job, error: jobError } = await supabase
       .from("extraction_job")
