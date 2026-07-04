@@ -30,10 +30,10 @@ const RequirementCardComponent = ({
                 <span className="font-semibold">Källa:</span>{" "}
                 {req.legalSource?.regelverkName || req.legalSource?.title}
               </div>
-              {req.legalSource?.lagrum && (
+              {(req.lagrum || req.legalSource?.lagrum) && (
                 <div>
                   <span className="font-semibold">Paragraf:</span>{" "}
-                  {req.legalSource.lagrum}
+                  {req.lagrum || req.legalSource?.lagrum}
                 </div>
               )}
             </CardDescription>
