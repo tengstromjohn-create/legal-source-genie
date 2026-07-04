@@ -69,7 +69,7 @@ serve(async (req) => {
         workspace_id: workspace_id ?? source.workspace_id ?? null,
         status: "pending",
         total_chunks: chunks.length,
-        model: `${modelLabel("extractor")} + ${reviewerLabel()}`,
+        model: `${await modelLabel("extractor")} + ${await reviewerLabel()}`,
       })
       .select("id").single();
     if (jobError || !job) {
