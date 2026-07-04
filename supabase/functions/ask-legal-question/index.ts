@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { complete } from "../_shared/extraction-model.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -152,39 +153,27 @@ ${question}
 Svara tydligt, på svenska, och hänvisa till relevanta lagrum (ange lagrumstextens rubrik eller nummer).
 `;
 
-    logWithContext("info", "Asking GPT for answer", requestContext);
+    logWithContext("info", "Asking responder model for answer", requestContext);
 
-    // 4) Ask LLM
-    const completionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: 'Du är en noggrann juridisk assistent.' },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.7,
-        max_tokens: 1000,
-      }),
-    });
-
-    if (!completionResponse.ok) {
-      const errorText = await completionResponse.text();
-      logWithContext("error", "OpenAI completion error", { ...requestContext, status: completionResponse.status, response: errorText });
-      
-      if (completionResponse.status === 429) {
-        return createErrorResponse("RATE_LIMIT", "För många förfrågningar. Försök igen senare.", 429);
-      }
-      
+    // 4) Fråga svarsmodellen via modellabstraktionen: responder-rollen
+    // läses ur model_role_config — modellbyte utan koddeploy.
+    let answer: string;
+    try {
+      const completion = await complete({
+        role: "responder",
+        system: "Du är en noggrann juridisk assistent.",
+        user: prompt,
+        maxTokens: 1000,
+      });
+      answer = completion.text || "Inget svar kunde genereras.";
+      requestContext.model = `${completion.provider}:${completion.model}`;
+    } catch (modelError) {
+      logWithContext("error", "Responder model error", {
+        ...requestContext,
+        error: modelError instanceof Error ? modelError.message : String(modelError),
+      });
       return createErrorResponse("AI_ERROR", "Kunde inte få svar från AI", 500);
     }
-
-    const completionData = await completionResponse.json();
-    const answer = completionData.choices[0].message?.content || 'Inget svar kunde genereras.';
 
     logWithContext("info", "Successfully generated answer", requestContext);
 

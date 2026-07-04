@@ -84,6 +84,6 @@ export async function reviewKrav(
   };
 }
 
-export function reviewerLabel(): string {
-  return modelLabel("reviewer");
+export async function reviewerLabel(): Promise<string> {
+  return await modelLabel("reviewer");
 }
