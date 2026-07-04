@@ -31,6 +31,17 @@ interface ExtractedKrav {
   risknivå?: string;
 }
 
+// Normalisera en paragrafhänvisning till indexets kanoniska form,
+// t.ex. "ABL 8 kap 4§" → "8 kap. 4 §", "24 a kap. 5 §" → "24 a kap. 5 §".
+// Returnerar null om strängen inte innehåller en svensk paragrafreferens.
+function normalizeLagrum(raw: string): string | null {
+  const m = raw.match(/(?:(\d{1,3})\s*(?:([a-z])\s*)?kap\.?\s*)?(\d{1,3})\s*(?:([a-z])\s*)?§/i);
+  if (!m) return null;
+  const [, kapNum, kapLetter, parNum, parLetter] = m;
+  const kap = kapNum ? `${parseInt(kapNum, 10)}${kapLetter ? ` ${kapLetter.toLowerCase()}` : ""} kap. ` : "";
+  return `${kap}${parseInt(parNum, 10)}${parLetter ? ` ${parLetter.toLowerCase()}` : ""} §`;
+}
+
 const RISK = new Set(["hög", "medel", "låg"]);
 function normalizeRisk(v?: string): string | null {
   if (!v) return null;
@@ -92,6 +103,15 @@ async function processChunk(supabase: SupabaseClient, job_id: string) {
     const { data: source } = await supabase.from("legal_source").select("*").eq("id", job.legal_source_id).single();
     const regelverk = source?.regelverk_name || source?.lagrum || "Okänt regelverk";
 
+    // Paragrafindexet är facit: kravens hänvisningar slås upp deterministiskt.
+    const { data: provisionRows } = await supabase.from("source_provision")
+      .select("id, label").eq("legal_source_id", job.legal_source_id);
+    const provisionIndex = new Map<string, { id: number; label: string }>();
+    for (const pr of provisionRows ?? []) {
+      const norm = normalizeLagrum(pr.label);
+      if (norm) provisionIndex.set(norm, { id: pr.id, label: pr.label });
+    }
+
     let insertedCount = 0;
     try {
       const userPrompt =
@@ -116,15 +136,25 @@ async function processChunk(supabase: SupabaseClient, job_id: string) {
       });
 
       if (fresh.length > 0) {
-        const rows = fresh.map((k) => ({
-          legal_source_id: job.legal_source_id,
-          workspace_id: job.workspace_id ?? source?.workspace_id ?? null,
-          titel: k.titel, beskrivning: k.beskrivning ?? null,
-          lagrum: k.paragraf ?? chunk.lagrum_ref,
-          obligation: k.obligation ?? null, risknivå: normalizeRisk(k.risknivå),
-          subjekt: k.subjekt ?? [], trigger: k.trigger ?? [], undantag: k.undantag ?? [],
-          åtgärder: k.åtgärder ?? [], status: "draft", created_by: "ai",
-        }));
+        const rows = fresh.map((k) => {
+          // Deterministisk grundningskontroll (audit 2026-07-05, steg 2):
+          // paragrafen måste finnas i källans paragrafindex. Träff ger
+          // kanonisk etikett + proveniens; miss flaggas för granskning.
+          const norm = k.paragraf ? normalizeLagrum(k.paragraf) : null;
+          const hit = norm ? provisionIndex.get(norm) : undefined;
+          return {
+            legal_source_id: job.legal_source_id,
+            workspace_id: job.workspace_id ?? source?.workspace_id ?? null,
+            titel: k.titel, beskrivning: k.beskrivning ?? null,
+            lagrum: hit ? hit.label : (k.paragraf ?? chunk.lagrum_ref),
+            provision_id: hit ? hit.id : null,
+            chunk_id: chunk.id,
+            reviewer_flags: hit ? [] : ["paragraf_ej_i_index"],
+            obligation: k.obligation ?? null, risknivå: normalizeRisk(k.risknivå),
+            subjekt: k.subjekt ?? [], trigger: k.trigger ?? [], undantag: k.undantag ?? [],
+            åtgärder: k.åtgärder ?? [], status: "draft", created_by: "ai",
+          };
+        });
         const { error } = await supabase.from("requirement").insert(rows);
         if (error) throw new Error(`Insert: ${error.message}`);
         insertedCount = rows.length;
