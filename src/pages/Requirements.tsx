@@ -50,7 +50,8 @@ const Requirements = () => {
       req.titel?.toLowerCase().includes(searchLower) ||
       req.beskrivning?.toLowerCase().includes(searchLower) ||
       req.legalSource?.title?.toLowerCase().includes(searchLower) ||
-      req.legalSource?.lagrum?.toLowerCase().includes(searchLower)
+      req.legalSource?.lagrum?.toLowerCase().includes(searchLower) ||
+      req.lagrum?.toLowerCase().includes(searchLower)
     ));
   }, [requirements, searchTerm]);
 
