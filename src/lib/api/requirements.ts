@@ -11,7 +11,6 @@ export async function fetchAllRequirements(workspaceId?: string | null): Promise
     .select(`
       *,
       legal_source:legal_source_id (
-        title,
         regelverk_name,
         lagrum
       )
@@ -44,7 +43,6 @@ export async function fetchRequirementsPaginated(
     .select(`
       *,
       legal_source:legal_source_id (
-        title,
         regelverk_name,
         lagrum
       )
