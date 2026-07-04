@@ -10,7 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2 } from "lucide-react";
+import { ExternalLink, Loader2 } from "lucide-react";
 import type { UpdateRequirementInput, Requirement, RiskLevel } from "@/types/domain";
 
 interface RequirementEditDialogProps {
@@ -19,6 +19,22 @@ interface RequirementEditDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (id: number, updates: UpdateRequirementInput) => Promise<void>;
   isSaving?: boolean;
+}
+
+/**
+ * Djuplänk till paragrafen på lagen.nu. SFS-nr ("2005:551") + lagrum
+ * ("8 kap. 4 a \u00a7") ger https://lagen.nu/2005:551#K8P4a.
+ * Returnerar null om SFS-nr saknas eller inte ser ut som ett SFS-nummer.
+ */
+function buildLagenNuUrl(sfs?: string, lagrum?: string): string | null {
+  if (!sfs || !/^\d{4}:\d+\w*$/.test(sfs.trim())) return null;
+  const base = `https://lagen.nu/${sfs.trim()}`;
+  if (!lagrum) return base;
+  const m = lagrum.match(/^(?:(\d+)\s*kap\.?\s*)?(\d+)\s*([a-z])?\s*\u00a7/i);
+  if (!m) return base;
+  const [, kap, par, bokstav] = m;
+  const anchor = `${kap ? `K${kap}` : ""}P${par}${bokstav ? bokstav.toLowerCase() : ""}`;
+  return `${base}#${anchor}`;
 }
 
 export const RequirementEditDialog = ({
@@ -73,6 +89,41 @@ export const RequirementEditDialog = ({
             Granska och ändra kravet enligt behov
           </DialogDescription>
         </DialogHeader>
+
+        {(requirement.lagrum || requirement.legalSource) && (
+          <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm space-y-1">
+            {requirement.legalSource && (
+              <div>
+                <span className="font-semibold">Källa:</span>{" "}
+                {requirement.legalSource.regelverkName || requirement.legalSource.title}
+              </div>
+            )}
+            {requirement.lagrum && (
+              <div className="flex items-center gap-2">
+                <span>
+                  <span className="font-semibold">Paragraf:</span> {requirement.lagrum}
+                </span>
+                {(() => {
+                  const url = buildLagenNuUrl(
+                    requirement.legalSource?.lagrum,
+                    requirement.lagrum,
+                  );
+                  return url ? (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-primary underline underline-offset-2"
+                    >
+                      Öppna paragrafen (lagen.nu)
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  ) : null;
+                })()}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
