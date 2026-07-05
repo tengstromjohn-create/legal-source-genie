@@ -1,8 +1,9 @@
 // =============================================================================
-// Modellabstraktion. Roller (extractor, reviewer, arbiter, classifier,
-// responder) mappas till leverantör + modell + promptversion via konfig-
-// tabellen model_role_config: senaste raden per roll där active_from <= now().
-// Modellbyte är därmed en konfigurationsändring — ingen koddeploy krävs.
+// Modellabstraktion. Roller (extractor, reviewer, reviewer_b, arbiter,
+// classifier, responder) mappas till leverantör + modell + promptversion via
+// konfigtabellen model_role_config: senaste raden per roll där
+// active_from <= now(). Modellbyte är därmed en konfigurationsändring —
+// ingen koddeploy krävs.
 // Fallbackordning: model_role_config → env (LSG_<ROLL>_MODEL) → DEFAULTS.
 // =============================================================================
 
@@ -11,22 +12,31 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 export type Role =
   | "extractor"
   | "reviewer"
+  | "reviewer_b"
   | "arbiter"
   | "classifier"
   | "responder";
 
+export type Provider = "anthropic" | "openai" | "google";
+
 export interface ModelConfig {
-  provider: "anthropic" | "openai";
+  provider: Provider;
   model: string;
   promptVersion: string;
 }
 
+function isProvider(v: unknown): v is Provider {
+  return v === "anthropic" || v === "openai" || v === "google";
+}
+
 // Sista utväg om konfigtabellen inte kan läsas och env saknas.
-// Matris enligt utvecklingsplanen rev. 2026-07-03; strängar verifierade mot
-// docs.claude.com respektive developers.openai.com 2026-07-04.
+// Matris enligt utvecklingsplanen rev. 2026-07-03 + beslut 12 (reviewer_b,
+// tredje modellfamilj). Strängar verifierade mot docs.claude.com,
+// developers.openai.com (2026-07-04) och ai.google.dev (2026-07-05).
 const DEFAULTS: Record<Role, ModelConfig> = {
   extractor: { provider: "anthropic", model: "claude-sonnet-5", promptVersion: "v1" },
   reviewer: { provider: "openai", model: "gpt-5.5", promptVersion: "v1" },
+  reviewer_b: { provider: "google", model: "gemini-3.5-flash", promptVersion: "v1" },
   arbiter: { provider: "anthropic", model: "claude-opus-4-8", promptVersion: "v1" },
   classifier: { provider: "anthropic", model: "claude-haiku-4-5-20251001", promptVersion: "v1" },
   responder: { provider: "anthropic", model: "claude-sonnet-5", promptVersion: "v1" },
@@ -41,7 +51,7 @@ function envOverride(role: Role): ModelConfig | null {
   const raw = Deno.env.get(`LSG_${role.toUpperCase()}_MODEL`);
   if (raw && raw.includes(":")) {
     const [provider, ...rest] = raw.split(":");
-    if (provider === "anthropic" || provider === "openai") {
+    if (isProvider(provider)) {
       return { provider, model: rest.join(":"), promptVersion: "env" };
     }
   }
@@ -63,7 +73,7 @@ async function fromConfigTable(role: Role): Promise<ModelConfig | null> {
       .limit(1)
       .maybeSingle();
     if (error || !data) return null;
-    if (data.provider !== "anthropic" && data.provider !== "openai") return null;
+    if (!isProvider(data.provider)) return null;
     return {
       provider: data.provider,
       model: data.model,
@@ -94,6 +104,7 @@ export interface CompletionResult {
   model: string;
   provider: string;
   promptVersion: string;
+  latencyMs: number;
 }
 
 async function callAnthropic(
@@ -160,16 +171,63 @@ async function callOpenAI(
   return data.choices?.[0]?.message?.content ?? "";
 }
 
+// Gemini API (generativelanguage.googleapis.com). Endpoint och svarformat
+// verifierade mot ai.google.dev/api 2026-07-05.
+async function callGemini(
+  cfg: ModelConfig,
+  req: CompletionRequest,
+): Promise<string> {
+  const key = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("GOOGLE_API_KEY");
+  if (!key) throw new Error("GEMINI_API_KEY/GOOGLE_API_KEY saknas");
+
+  const url =
+    `https://generativelanguage.googleapis.com/v1beta/models/${cfg.model}:generateContent`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "x-goog-api-key": key,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: req.system }] },
+      contents: [{ role: "user", parts: [{ text: req.user }] }],
+      generationConfig: { maxOutputTokens: req.maxTokens ?? 8000 },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Gemini ${res.status}: ${body.substring(0, 300)}`);
+  }
+  const data = await res.json();
+  const parts = data.candidates?.[0]?.content?.parts ?? [];
+  return parts
+    .filter((p: { text?: unknown }) => typeof p.text === "string")
+    .map((p: { text: string }) => p.text)
+    .join("");
+}
+
 export async function complete(req: CompletionRequest): Promise<CompletionResult> {
   const cfg = await resolveRole(req.role);
-  const text = cfg.provider === "anthropic"
-    ? await callAnthropic(cfg, req)
-    : await callOpenAI(cfg, req);
+  const started = Date.now();
+  let text: string;
+  switch (cfg.provider) {
+    case "anthropic":
+      text = await callAnthropic(cfg, req);
+      break;
+    case "openai":
+      text = await callOpenAI(cfg, req);
+      break;
+    case "google":
+      text = await callGemini(cfg, req);
+      break;
+  }
   return {
     text,
     model: cfg.model,
     provider: cfg.provider,
     promptVersion: cfg.promptVersion,
+    latencyMs: Date.now() - started,
   };
 }
 
