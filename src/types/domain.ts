@@ -23,6 +23,13 @@ export type RiskLevel = "låg" | "medel" | "hög" | "kritisk";
 
 export type RequirementStatus = "draft" | "in_review" | "approved" | "rejected" | "archived";
 
+/**
+ * Sammanvägt utfall av AI-granskningskedjan steg 3–4 (block 5).
+ * pending → processing → green (eniga granskare) / yellow (arbitern godkände
+ * efter oenighet) / red (underkänt eller ogranskningsbart).
+ */
+export type MachineReviewStatus = "pending" | "processing" | "green" | "yellow" | "red";
+
 // -----------------------------------------------------------------------------
 // Core Domain Types
 // -----------------------------------------------------------------------------
@@ -72,6 +79,12 @@ export interface Requirement {
   reviewerFlags: string[];
   /** Ordagrant källcitat, maskinverifierat mot paragrafindexet (source_quote). */
   sourceQuote?: string;
+  /** Sammanvägt utfall av AI-granskningskedjan (machine_review_status). */
+  machineReviewStatus?: MachineReviewStatus;
+  /** Proveniens: kanonisk paragraf i source_provision som kravet är förankrat i. */
+  provisionId?: number;
+  /** Proveniens: extraktionschunk kravet kom ur. */
+  chunkId?: string;
   
   // Metadata
   createdAt: Date;
