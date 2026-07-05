@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ExternalLink, Loader2 } from "lucide-react";
 import type { UpdateRequirementInput, Requirement, RiskLevel } from "@/types/domain";
+import { VerdictTrail } from "@/components/requirements/VerdictTrail";
 
 interface RequirementEditDialogProps {
   requirement: Requirement;
@@ -141,6 +142,18 @@ export const RequirementEditDialog = ({
             )}
           </div>
         )}
+
+        {/* Bedömningsspåret (block 5): nivå 1-badges + drill-down till
+            granskarnas fullständiga bedömningar och råsvar. */}
+        <div className="rounded-md border px-3 py-2">
+          <VerdictTrail
+            requirementId={requirement.id}
+            provisionId={requirement.provisionId}
+            chunkId={requirement.chunkId}
+            machineReviewStatus={requirement.machineReviewStatus}
+            deterministicFlags={requirement.reviewerFlags ?? []}
+          />
+        </div>
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
