@@ -61,6 +61,29 @@ export async function getVerdicts(requirementId: number): Promise<ModelVerdict[]
   return (data ?? []) as ModelVerdict[];
 }
 
+/** Logga juristbeslutet med fryst kontext — grunden för golden dataset. */
+async function logDecision(
+  id: number,
+  decision: "approved" | "rejected" | "edited_approved",
+  note?: string,
+): Promise<void> {
+  const { data: userData } = await supabase.auth.getUser();
+  const { data: req } = await supabase
+    .from("requirement")
+    .select("reviewer_flags, source_quote, lagrum")
+    .eq("id", id)
+    .maybeSingle();
+  await supabase.from("review_decision").insert({
+    requirement_id: id,
+    decision,
+    note: note ?? null,
+    reviewer: userData?.user?.id ?? null,
+    flags_at_decision: (req as any)?.reviewer_flags ?? null,
+    source_quote_at_decision: (req as any)?.source_quote ?? null,
+    lagrum_at_decision: (req as any)?.lagrum ?? null,
+  });
+}
+
 /** Godkänn ett krav. Endast godkända krav exponeras mot externa konsumenter. */
 export async function approveRequirement(id: number, note?: string): Promise<void> {
   const { data: userData } = await supabase.auth.getUser();
@@ -74,6 +97,7 @@ export async function approveRequirement(id: number, note?: string): Promise<voi
     })
     .eq("id", id);
   if (error) throw new Error(error.message || "Kunde inte godkänna kravet");
+  await logDecision(id, "approved", note);
 }
 
 /** Avslå ett krav (felaktigt/ogrundat). Sparas men exponeras aldrig. */
@@ -89,6 +113,7 @@ export async function rejectRequirement(id: number, note?: string): Promise<void
     })
     .eq("id", id);
   if (error) throw new Error(error.message || "Kunde inte avslå kravet");
+  await logDecision(id, "rejected", note);
 }
 
 /** Redigera och godkänn i ett steg — juristens korrigering blir facit. */
@@ -109,4 +134,5 @@ export async function editAndApproveRequirement(
     })
     .eq("id", id);
   if (error) throw new Error(error.message || "Kunde inte uppdatera kravet");
+  await logDecision(id, "edited_approved", note);
 }
