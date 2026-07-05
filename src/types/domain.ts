@@ -70,6 +70,8 @@ export interface Requirement {
   status: RequirementStatus;
   reviewerConfidence?: number;
   reviewerFlags: string[];
+  /** Ordagrant källcitat, maskinverifierat mot paragrafindexet (source_quote). */
+  sourceQuote?: string;
   
   // Metadata
   createdAt: Date;

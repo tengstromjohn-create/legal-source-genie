@@ -103,6 +103,7 @@ export function mapRequirementRowToRequirement(
     status: parseStatus(row.status),
     reviewerConfidence: row.reviewer_confidence ?? undefined,
     reviewerFlags: parseStringArray(row.reviewer_flags),
+    sourceQuote: row.source_quote ?? undefined,
     createdAt: row.created_at ? new Date(row.created_at) : new Date(),
     createdBy: row.created_by ?? undefined,
     legalSource: legalSource

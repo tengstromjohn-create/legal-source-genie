@@ -23,6 +23,7 @@ interface ExtractedKrav {
   titel: string;
   beskrivning?: string;
   paragraf?: string;
+  källcitat?: string;
   subjekt?: string[];
   trigger?: string[];
   undantag?: string[];
@@ -40,6 +41,13 @@ function normalizeLagrum(raw: string): string | null {
   const [, kapNum, kapLetter, parNum, parLetter] = m;
   const kap = kapNum ? `${parseInt(kapNum, 10)}${kapLetter ? ` ${kapLetter.toLowerCase()}` : ""} kap. ` : "";
   return `${kap}${parseInt(parNum, 10)}${parLetter ? ` ${parLetter.toLowerCase()}` : ""} §`;
+}
+
+// Whitespace-tolerant jämförelse: källtexten är hårdradbruten, modellen
+// återger citat med enkla mellanslag. Allt whitespace kollapsas före substräng-
+// jämförelse; själva tecknen måste vara ordagranna.
+function squash(s: string): string {
+  return s.replace(/\s+/g, " ").trim();
 }
 
 const RISK = new Set(["hög", "medel", "låg"]);
@@ -105,11 +113,14 @@ async function processChunk(supabase: SupabaseClient, job_id: string) {
 
     // Paragrafindexet är facit: kravens hänvisningar slås upp deterministiskt.
     const { data: provisionRows } = await supabase.from("source_provision")
-      .select("id, label").eq("legal_source_id", job.legal_source_id);
-    const provisionIndex = new Map<string, { id: number; label: string }>();
+      .select("id, label, text").eq("legal_source_id", job.legal_source_id);
+    const provisionIndex = new Map<string, { id: number; label: string; squashed: string }>();
+    const allProvisions: { id: number; label: string; squashed: string }[] = [];
     for (const pr of provisionRows ?? []) {
+      const entry = { id: pr.id, label: pr.label, squashed: squash(pr.text ?? "") };
+      allProvisions.push(entry);
       const norm = normalizeLagrum(pr.label);
-      if (norm) provisionIndex.set(norm, { id: pr.id, label: pr.label });
+      if (norm) provisionIndex.set(norm, entry);
     }
 
     let insertedCount = 0;
@@ -137,11 +148,34 @@ async function processChunk(supabase: SupabaseClient, job_id: string) {
 
       if (fresh.length > 0) {
         const rows = fresh.map((k) => {
-          // Deterministisk grundningskontroll (audit 2026-07-05, steg 2):
-          // paragrafen måste finnas i källans paragrafindex. Träff ger
-          // kanonisk etikett + proveniens; miss flaggas för granskning.
+          // Deterministisk grundningskontroll (audit 2026-07-05, steg 2).
+          // Kontroll A: paragrafen måste finnas i paragrafindexet.
           const norm = k.paragraf ? normalizeLagrum(k.paragraf) : null;
-          const hit = norm ? provisionIndex.get(norm) : undefined;
+          let hit = norm ? provisionIndex.get(norm) : undefined;
+          const flags: string[] = [];
+          if (!hit) flags.push("paragraf_ej_i_index");
+
+          // Kontroll B: källcitatet måste ordagrant finnas i den paragraf
+          // kravet pekar på. Citatet är facit: finns det i en annan paragraf
+          // omankras kravet dit (modellen angav fel adress till rätt text).
+          const quote = (k.källcitat ?? "").trim();
+          const squashedQuote = squash(quote);
+          if (squashedQuote.length < 20) {
+            flags.push("citat_saknas");
+          } else if (hit && hit.squashed.includes(squashedQuote)) {
+            // Verifierat: citat + paragraf hör ihop.
+          } else {
+            const matches = allProvisions.filter((p) => p.squashed.includes(squashedQuote));
+            if (matches.length === 1) {
+              hit = matches[0];
+              flags.push("omankrad_via_citat");
+            } else if (matches.length > 1) {
+              flags.push("citat_i_flera_paragrafer");
+            } else {
+              flags.push("citat_ej_verifierat");
+            }
+          }
+
           return {
             legal_source_id: job.legal_source_id,
             workspace_id: job.workspace_id ?? source?.workspace_id ?? null,
@@ -149,7 +183,8 @@ async function processChunk(supabase: SupabaseClient, job_id: string) {
             lagrum: hit ? hit.label : (k.paragraf ?? chunk.lagrum_ref),
             provision_id: hit ? hit.id : null,
             chunk_id: chunk.id,
-            reviewer_flags: hit ? [] : ["paragraf_ej_i_index"],
+            source_quote: quote || null,
+            reviewer_flags: flags,
             obligation: k.obligation ?? null, risknivå: normalizeRisk(k.risknivå),
             subjekt: k.subjekt ?? [], trigger: k.trigger ?? [], undantag: k.undantag ?? [],
             åtgärder: k.åtgärder ?? [], status: "draft", created_by: "ai",
