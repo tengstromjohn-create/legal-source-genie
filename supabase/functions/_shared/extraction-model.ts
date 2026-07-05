@@ -182,22 +182,28 @@ async function callGemini(
 
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/${cfg.model}:generateContent`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "x-goog-api-key": key,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: req.system }] },
-      contents: [{ role: "user", parts: [{ text: req.user }] }],
-      generationConfig: { maxOutputTokens: req.maxTokens ?? 8000 },
-    }),
+  const payload = JSON.stringify({
+    systemInstruction: { parts: [{ text: req.system }] },
+    contents: [{ role: "user", parts: [{ text: req.user }] }],
+    generationConfig: { maxOutputTokens: req.maxTokens ?? 8000 },
   });
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Gemini ${res.status}: ${body.substring(0, 300)}`);
+  // Backoff-retry vid 429: ratelimit per minut ska inte slå ut granskare B.
+  // Uttömd dagskvot ger 429 även efter retry — då propageras felet som vanligt.
+  let res: Response | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 15_000 * attempt));
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
+      body: payload,
+    });
+    if (res.status !== 429) break;
+  }
+
+  if (!res || !res.ok) {
+    const body = res ? await res.text() : "";
+    throw new Error(`Gemini ${res?.status}: ${body.substring(0, 300)}`);
   }
   const data = await res.json();
   const parts = data.candidates?.[0]?.content?.parts ?? [];
