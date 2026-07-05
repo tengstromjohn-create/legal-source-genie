@@ -8,6 +8,7 @@ import {
   updateRequirement as apiUpdateRequirement,
   deleteRequirement as apiDeleteRequirement,
 } from "@/lib/api/requirements";
+import { approveRequirement, rejectRequirement } from "@/lib/api/review-queue";
 import { useActiveWorkspaceId } from "@/hooks/use-workspaces";
 import { logError, getUserFriendlyMessage } from "@/lib/error";
 
@@ -89,6 +90,30 @@ export function useRequirements() {
     },
   });
 
+  const reviewMutation = useMutation({
+    mutationFn: async ({ id, decision, note }: { id: number; decision: "approved" | "rejected"; note?: string }) => {
+      if (decision === "approved") await approveRequirement(id, note);
+      else await rejectRequirement(id, note);
+      return decision;
+    },
+    onSuccess: (decision, { id }) => {
+      queryClient.setQueryData<Requirement[]>(
+        ["requirements", workspaceId],
+        (old) => old?.map(r => r.id === id ? { ...r, status: decision } : r) ?? []
+      );
+      toast({
+        title: decision === "approved" ? "Godkänt" : "Avvisat",
+        description: decision === "approved"
+          ? "Kravet är godkänt och beslutet loggat"
+          : "Kravet är avvisat och beslutet loggat",
+      });
+    },
+    onError: (error: Error) => {
+      logError(error, { component: "useRequirements", action: "review", workspaceId });
+      toast({ title: "Fel", description: getUserFriendlyMessage(error), variant: "destructive" });
+    },
+  });
+
   return {
     requirements,
     isLoading,
@@ -99,6 +124,9 @@ export function useRequirements() {
     updateRequirement: (id: number, updates: UpdateRequirementInput) =>
       updateMutation.mutateAsync({ id, updates }),
     isUpdating: updateMutation.isPending,
+    reviewRequirement: (id: number, decision: "approved" | "rejected", note?: string) =>
+      reviewMutation.mutateAsync({ id, decision, note }),
+    isReviewing: reviewMutation.isPending,
   };
 }
 
