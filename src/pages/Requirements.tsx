@@ -26,6 +26,7 @@ const PAGE_SIZE = 20;
 const Requirements = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [reviewFilter, setReviewFilter] = useState<"alla" | "flaggade" | "utkast" | "godkanda" | "avvisade">("alla");
+  const [machineFilter, setMachineFilter] = useState<"alla" | "green" | "yellow" | "red" | "ogranskade">("alla");
   const [selectedRequirement, setSelectedRequirement] = useState<Requirement | null>(null);
   const [deleteRequirementId, setDeleteRequirementId] = useState<number | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -55,6 +56,18 @@ const Requirements = () => {
     };
   }, [requirements]);
 
+  // Räknare för maskinstatus (AI-granskningskedjan steg 3–4)
+  const machineCounts = useMemo(() => {
+    const all = requirements ?? [];
+    return {
+      alla: all.length,
+      green: all.filter(r => r.machineReviewStatus === "green").length,
+      yellow: all.filter(r => r.machineReviewStatus === "yellow").length,
+      red: all.filter(r => r.machineReviewStatus === "red").length,
+      ogranskade: all.filter(r => !r.machineReviewStatus || r.machineReviewStatus === "pending" || r.machineReviewStatus === "processing").length,
+    };
+  }, [requirements]);
+
   // Memoize filtered requirements
   const filteredRequirements = useMemo(() => {
     if (!requirements) return [];
@@ -64,6 +77,11 @@ const Requirements = () => {
     else if (reviewFilter === "utkast") base = base.filter(r => r.status === "draft");
     else if (reviewFilter === "godkanda") base = base.filter(r => r.status === "approved");
     else if (reviewFilter === "avvisade") base = base.filter(r => r.status === "rejected");
+
+    if (machineFilter === "green") base = base.filter(r => r.machineReviewStatus === "green");
+    else if (machineFilter === "yellow") base = base.filter(r => r.machineReviewStatus === "yellow");
+    else if (machineFilter === "red") base = base.filter(r => r.machineReviewStatus === "red");
+    else if (machineFilter === "ogranskade") base = base.filter(r => !r.machineReviewStatus || r.machineReviewStatus === "pending" || r.machineReviewStatus === "processing");
 
     if (!searchTerm) return base;
     
@@ -75,7 +93,7 @@ const Requirements = () => {
       req.legalSource?.lagrum?.toLowerCase().includes(searchLower) ||
       req.lagrum?.toLowerCase().includes(searchLower)
     ));
-  }, [requirements, searchTerm, reviewFilter]);
+  }, [requirements, searchTerm, reviewFilter, machineFilter]);
 
   // Paginate locally
   const visibleRequirements = useMemo(() => {
@@ -184,6 +202,25 @@ const Requirements = () => {
               onClick={() => { setReviewFilter(key); setVisibleCount(PAGE_SIZE); }}
             >
               {label} ({counts[key]})
+            </Button>
+          ))}
+        </div>
+        <div className="flex gap-2 flex-wrap mb-4 items-center">
+          <span className="text-xs text-muted-foreground">AI-granskning:</span>
+          {([
+            ["alla", "Alla"],
+            ["green", "🟢 Grön"],
+            ["yellow", "🟡 Gul"],
+            ["red", "🔴 Röd"],
+            ["ogranskade", "Ogranskade"],
+          ] as const).map(([key, label]) => (
+            <Button
+              key={key}
+              variant={machineFilter === key ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setMachineFilter(key); setVisibleCount(PAGE_SIZE); }}
+            >
+              {label} ({machineCounts[key]})
             </Button>
           ))}
         </div>

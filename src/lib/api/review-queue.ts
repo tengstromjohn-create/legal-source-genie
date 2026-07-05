@@ -31,6 +31,13 @@ export interface ModelVerdict {
   issues: string[] | null;
   suggested_lagrum: string | null;
   created_at: string;
+  // Drill-down-spår (block 5): promptversion, fullt råsvar, latens och vilken
+  // kanonisk paragraf bedömningen gjordes mot. raw bär arbiterns motivering.
+  prompt_version: string | null;
+  raw_response: string | null;
+  latency_ms: number | null;
+  input_provision_id: number | null;
+  raw: unknown;
 }
 
 /**

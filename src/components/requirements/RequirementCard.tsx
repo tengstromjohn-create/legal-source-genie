@@ -3,6 +3,7 @@ import { Edit, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Requirement, RequirementStatus } from "@/types/domain";
+import { MACHINE_STATUS_META } from "@/components/requirements/VerdictTrail";
 
 const STATUS_LABELS: Record<RequirementStatus, { label: string; cls: string }> = {
   draft: { label: "Utkast", cls: "bg-muted text-muted-foreground" },
@@ -36,6 +37,11 @@ const RequirementCardComponent = ({
               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_LABELS[req.status].cls}`}>
                 {STATUS_LABELS[req.status].label}
               </span>
+              {req.machineReviewStatus && (
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${MACHINE_STATUS_META[req.machineReviewStatus].cls}`}>
+                  {MACHINE_STATUS_META[req.machineReviewStatus].label}
+                </span>
+              )}
               {req.reviewerFlags && req.reviewerFlags.length > 0 && (
                 <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">
                   ⚑ {req.reviewerFlags.join(", ")}
