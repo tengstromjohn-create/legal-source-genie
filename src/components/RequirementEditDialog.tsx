@@ -19,6 +19,8 @@ interface RequirementEditDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (id: number, updates: UpdateRequirementInput) => Promise<void>;
   isSaving?: boolean;
+  onReview?: (id: number, decision: "approved" | "rejected", note?: string) => Promise<void>;
+  isReviewing?: boolean;
 }
 
 /**
@@ -43,6 +45,8 @@ export const RequirementEditDialog = ({
   onOpenChange,
   onSave,
   isSaving = false,
+  onReview,
+  isReviewing = false,
 }: RequirementEditDialogProps) => {
   const [titel, setTitel] = useState("");
   const [beskrivning, setBeskrivning] = useState("");
@@ -52,6 +56,7 @@ export const RequirementEditDialog = ({
   const [obligation, setObligation] = useState("");
   const [åtgärder, setÅtgärder] = useState("");
   const [risknivå, setRisknivå] = useState("");
+  const [granskningsnot, setGranskningsnot] = useState("");
 
   useEffect(() => {
     setTitel(requirement.titel || "");
@@ -62,6 +67,7 @@ export const RequirementEditDialog = ({
     setObligation(requirement.obligation || "");
     setÅtgärder(requirement.åtgärder?.join(", ") || "");
     setRisknivå(requirement.risknivå || "");
+    setGranskningsnot("");
   }, [requirement]);
 
   const handleSave = async () => {
@@ -230,18 +236,60 @@ export const RequirementEditDialog = ({
           </div>
         </div>
 
-        <div className="flex justify-end gap-3">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isSaving}
-          >
-            Avbryt
-          </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Spara
-          </Button>
+        {onReview && requirement.status !== "approved" && requirement.status !== "rejected" && (
+          <div className="space-y-2 border-t pt-4">
+            <Label htmlFor="granskningsnot">Granskningskommentar (valfri — loggas med beslutet)</Label>
+            <Textarea
+              id="granskningsnot"
+              value={granskningsnot}
+              onChange={(e) => setGranskningsnot(e.target.value)}
+              placeholder="t.ex. citatet avviker från lagtexten; paragraf korrigerad"
+              rows={2}
+            />
+          </div>
+        )}
+
+        <div className="flex justify-between gap-3 flex-wrap">
+          <div className="flex gap-3">
+            {onReview && requirement.status !== "approved" && requirement.status !== "rejected" && (
+              <>
+                <Button
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => onReview(requirement.id, "approved", granskningsnot || undefined)}
+                  disabled={isReviewing || isSaving}
+                >
+                  {isReviewing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Godkänn
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => onReview(requirement.id, "rejected", granskningsnot || undefined)}
+                  disabled={isReviewing || isSaving}
+                >
+                  {isReviewing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Avvisa
+                </Button>
+              </>
+            )}
+            {(requirement.status === "approved" || requirement.status === "rejected") && (
+              <span className="text-sm text-muted-foreground self-center">
+                Beslut fattat: {requirement.status === "approved" ? "Godkänt" : "Avvisat"}
+              </span>
+            )}
+          </div>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isSaving}
+            >
+              Avbryt
+            </Button>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Spara ändringar
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -2,7 +2,15 @@ import React, { memo } from "react";
 import { Edit, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Requirement } from "@/types/domain";
+import { Requirement, RequirementStatus } from "@/types/domain";
+
+const STATUS_LABELS: Record<RequirementStatus, { label: string; cls: string }> = {
+  draft: { label: "Utkast", cls: "bg-muted text-muted-foreground" },
+  in_review: { label: "Under granskning", cls: "bg-blue-100 text-blue-800" },
+  approved: { label: "Godkänt", cls: "bg-green-100 text-green-800" },
+  rejected: { label: "Avvisat", cls: "bg-red-100 text-red-800" },
+  archived: { label: "Arkiverat", cls: "bg-muted text-muted-foreground" },
+};
 
 interface RequirementCardProps {
   requirement: Requirement;
@@ -24,6 +32,16 @@ const RequirementCardComponent = ({
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="flex-1">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_LABELS[req.status].cls}`}>
+                {STATUS_LABELS[req.status].label}
+              </span>
+              {req.reviewerFlags && req.reviewerFlags.length > 0 && (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">
+                  ⚑ {req.reviewerFlags.join(", ")}
+                </span>
+              )}
+            </div>
             <CardTitle className="text-xl">{req.titel}</CardTitle>
             <CardDescription className="mt-2 space-y-1">
               <div>

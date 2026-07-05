@@ -25,6 +25,7 @@ const PAGE_SIZE = 20;
 
 const Requirements = () => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [reviewFilter, setReviewFilter] = useState<"alla" | "flaggade" | "utkast" | "godkanda" | "avvisade">("alla");
   const [selectedRequirement, setSelectedRequirement] = useState<Requirement | null>(null);
   const [deleteRequirementId, setDeleteRequirementId] = useState<number | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -38,22 +39,43 @@ const Requirements = () => {
     isDeleting,
     updateRequirement,
     isUpdating,
+    reviewRequirement,
+    isReviewing,
   } = useRequirements();
+
+  // Räknare för granskningsfiltret
+  const counts = useMemo(() => {
+    const all = requirements ?? [];
+    return {
+      alla: all.length,
+      flaggade: all.filter(r => r.reviewerFlags && r.reviewerFlags.length > 0 && r.status === "draft").length,
+      utkast: all.filter(r => r.status === "draft").length,
+      godkanda: all.filter(r => r.status === "approved").length,
+      avvisade: all.filter(r => r.status === "rejected").length,
+    };
+  }, [requirements]);
 
   // Memoize filtered requirements
   const filteredRequirements = useMemo(() => {
     if (!requirements) return [];
-    if (!searchTerm) return requirements;
+
+    let base = requirements;
+    if (reviewFilter === "flaggade") base = base.filter(r => r.reviewerFlags && r.reviewerFlags.length > 0 && r.status === "draft");
+    else if (reviewFilter === "utkast") base = base.filter(r => r.status === "draft");
+    else if (reviewFilter === "godkanda") base = base.filter(r => r.status === "approved");
+    else if (reviewFilter === "avvisade") base = base.filter(r => r.status === "rejected");
+
+    if (!searchTerm) return base;
     
     const searchLower = searchTerm.toLowerCase();
-    return requirements.filter((req) => (
+    return base.filter((req) => (
       req.titel?.toLowerCase().includes(searchLower) ||
       req.beskrivning?.toLowerCase().includes(searchLower) ||
       req.legalSource?.title?.toLowerCase().includes(searchLower) ||
       req.legalSource?.lagrum?.toLowerCase().includes(searchLower) ||
       req.lagrum?.toLowerCase().includes(searchLower)
     ));
-  }, [requirements, searchTerm]);
+  }, [requirements, searchTerm, reviewFilter]);
 
   // Paginate locally
   const visibleRequirements = useMemo(() => {
@@ -82,6 +104,11 @@ const Requirements = () => {
   const handleEdit = useCallback((req: Requirement) => {
     setSelectedRequirement(req);
   }, []);
+
+  const handleReview = useCallback(async (id: number, decision: "approved" | "rejected", note?: string) => {
+    await reviewRequirement(id, decision, note);
+    setSelectedRequirement(null);
+  }, [reviewRequirement]);
 
   const handleRequestDelete = useCallback((id: number) => {
     setDeleteRequirementId(id);
@@ -142,6 +169,24 @@ const Requirements = () => {
       <DemoBanner />
 
       <main className="container mx-auto px-4 py-8">
+        <div className="flex gap-2 flex-wrap mb-4">
+          {([
+            ["alla", "Alla"],
+            ["flaggade", "⚡ Flaggade"],
+            ["utkast", "Utkast"],
+            ["godkanda", "Godkända"],
+            ["avvisade", "Avvisade"],
+          ] as const).map(([key, label]) => (
+            <Button
+              key={key}
+              variant={reviewFilter === key ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setReviewFilter(key); setVisibleCount(PAGE_SIZE); }}
+            >
+              {label} ({counts[key]})
+            </Button>
+          ))}
+        </div>
         <div className="mb-6">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -203,6 +248,8 @@ const Requirements = () => {
           onOpenChange={(open) => !open && setSelectedRequirement(null)}
           onSave={handleSaveRequirement}
           isSaving={isUpdating}
+          onReview={handleReview}
+          isReviewing={isReviewing}
         />
       )}
 
