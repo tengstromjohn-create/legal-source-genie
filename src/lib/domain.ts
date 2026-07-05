@@ -10,6 +10,7 @@ import { Tables } from "@/integrations/supabase/types";
 import {
   LegalSource,
   LegalSourceType,
+  MachineReviewStatus,
   Requirement,
   RequirementStatus,
   RiskLevel,
@@ -84,6 +85,11 @@ function parseStatus(value: string): RequirementStatus {
   return valid.includes(value as RequirementStatus) ? (value as RequirementStatus) : "draft";
 }
 
+function parseMachineStatus(value: unknown): MachineReviewStatus | undefined {
+  const valid: MachineReviewStatus[] = ["pending", "processing", "green", "yellow", "red"];
+  return valid.includes(value as MachineReviewStatus) ? (value as MachineReviewStatus) : undefined;
+}
+
 export function mapRequirementRowToRequirement(
   row: RequirementRow,
   legalSource?: { regelverk_name: string | null; lagrum: string | null }
@@ -104,6 +110,14 @@ export function mapRequirementRowToRequirement(
     reviewerConfidence: row.reviewer_confidence ?? undefined,
     reviewerFlags: parseStringArray(row.reviewer_flags),
     sourceQuote: row.source_quote ?? undefined,
+    // Kolumnerna nedan är nyare än den genererade typfilen — läses defensivt.
+    machineReviewStatus: parseMachineStatus((row as Record<string, unknown>).machine_review_status),
+    provisionId: typeof (row as Record<string, unknown>).provision_id === "number"
+      ? ((row as Record<string, unknown>).provision_id as number)
+      : undefined,
+    chunkId: typeof (row as Record<string, unknown>).chunk_id === "string"
+      ? ((row as Record<string, unknown>).chunk_id as string)
+      : undefined,
     createdAt: row.created_at ? new Date(row.created_at) : new Date(),
     createdBy: row.created_by ?? undefined,
     legalSource: legalSource
