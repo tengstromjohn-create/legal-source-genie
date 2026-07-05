@@ -98,6 +98,17 @@ export const RequirementEditDialog = ({
                 {requirement.legalSource.regelverkName || requirement.legalSource.title}
               </div>
             )}
+            {requirement.sourceQuote && (
+              <blockquote className="border-l-2 border-primary/40 pl-2 italic text-muted-foreground">
+                &rdquo;{requirement.sourceQuote}&rdquo;
+              </blockquote>
+            )}
+            {requirement.reviewerFlags && requirement.reviewerFlags.length > 0 && (
+              <div className="text-destructive">
+                <span className="font-semibold">Flaggor:</span>{" "}
+                {requirement.reviewerFlags.join(", ")}
+              </div>
+            )}
             {requirement.lagrum && (
               <div className="flex items-center gap-2">
                 <span>
