@@ -72,7 +72,28 @@ async function triggerNext(jobId: string) {
   }
 }
 
-async function finalizeIfDone(supabase: SupabaseClient, jobId: string): Promise<boolean> {
+// När ett extraktionsjobb är klart triggas granskningskedjan (steg 3–4,
+// block 5) för källans nya krav. Fire-and-forget: review-worker ackar
+// direkt och driver sin egen kö.
+async function triggerReviewWorker(legalSourceId: number) {
+  const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/review-worker`;
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ legal_source_id: legalSourceId }),
+    });
+  } catch (e) {
+    log("warn", "triggerReviewWorker failed", { legalSourceId, error: String(e) });
+  }
+}
+
+async function finalizeIfDone(
+  supabase: SupabaseClient,
+  jobId: string,
+  legalSourceId: number | null,
+): Promise<boolean> {
   const { count: pending } = await supabase.from("extraction_chunk")
     .select("*", { count: "exact", head: true }).eq("job_id", jobId).eq("status", "pending");
   if ((pending ?? 0) > 0) return false;
@@ -82,9 +103,12 @@ async function finalizeIfDone(supabase: SupabaseClient, jobId: string): Promise<
   const { count: done } = await supabase.from("extraction_chunk")
     .select("*", { count: "exact", head: true }).eq("job_id", jobId).eq("status", "completed");
 
-  await supabase.from("extraction_job").update({
-    status: (failed ?? 0) > 0 && (done ?? 0) === 0 ? "failed" : "completed",
-  }).eq("id", jobId);
+  const finalStatus = (failed ?? 0) > 0 && (done ?? 0) === 0 ? "failed" : "completed";
+  await supabase.from("extraction_job").update({ status: finalStatus }).eq("id", jobId);
+
+  if (finalStatus === "completed" && legalSourceId !== null) {
+    await triggerReviewWorker(legalSourceId);
+  }
   return true;
 }
 
@@ -102,7 +126,7 @@ async function processChunk(supabase: SupabaseClient, job_id: string) {
       .order("chunk_index", { ascending: true }).limit(1).maybeSingle();
 
     if (!chunk) {
-      await finalizeIfDone(supabase, job_id);
+      await finalizeIfDone(supabase, job_id, job.legal_source_id ?? null);
       return;
     }
 
@@ -213,7 +237,7 @@ async function processChunk(supabase: SupabaseClient, job_id: string) {
     }).eq("id", job_id);
 
     // Klart eller trigga nästa chunk.
-    const finalized = await finalizeIfDone(supabase, job_id);
+    const finalized = await finalizeIfDone(supabase, job_id, job.legal_source_id ?? null);
     if (!finalized) await triggerNext(job_id);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Oväntat fel";
